@@ -78,8 +78,8 @@ def worker_init_fn(worker_id):
 if is_training:
 
     # Create train / test dataset
-    dataset_train = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, FLAGS.input_type, train=True, out_bool=False, out_float=True, is_undc=(FLAGS.method == "undc"))
-    dataset_test = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, FLAGS.input_type, train=False, out_bool=True, out_float=True, is_undc=(FLAGS.method == "undc"))
+    dataset_train = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, FLAGS.input_type, train=True)
+    dataset_test = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, FLAGS.input_type, train=False)
 
     dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=1, shuffle=True, num_workers=16, worker_init_fn=worker_init_fn) #batch_size must be 1
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=16)  #batch_size must be 1
@@ -168,7 +168,7 @@ elif is_testing:
     import cutils
 
     # Create test dataset
-    dataset_test = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, FLAGS.input_type, train=False, out_bool=True, out_float=True, is_undc=(FLAGS.method == "undc"), input_only=True)
+    dataset_test = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, FLAGS.input_type, train=False, input_only=True)
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=16)  # batch_size must be 1
 
     # load weights
