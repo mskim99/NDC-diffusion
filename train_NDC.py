@@ -5,13 +5,12 @@ import time
 
 import torch
 
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--epoch", action="store", dest="epoch", default=1000, type=int, help="Epoch to train [400,250,25]")
 parser.add_argument("--lr", action="store", dest="lr", default=0.0001, type=float, help="Learning rate [0.0001]")
 parser.add_argument("--lr_half_life", action="store", dest="lr_half_life", default=10000, type=int, help="Halve lr every few epochs [100,5]")
-parser.add_argument("--data_dir", action="store", dest="data_dir", default="/data/jionkim/gt_NDC_KISTI", help="Root directory of dataset [gt_NDC,gt_UNDC,gt_UNDCa]")
+parser.add_argument("--data_dir", action="store", dest="data_dir", default="/data/jionkim/gt_NDC_KISTI_SDF_npy", help="Root directory of dataset [gt_NDC,gt_UNDC,gt_UNDCa]")
 parser.add_argument("--checkpoint_dir", action="store", dest="checkpoint_dir", default="weights", help="Directory name to save the checkpoints [weights]")
 parser.add_argument("--checkpoint_save_frequency", action="store", dest="checkpoint_save_frequency", default=50, type=int, help="Save checkpoint every few epochs [50,10,1]")
 parser.add_argument("--sample_dir", action="store", dest="sample_dir", default="samples", help="Directory name to save the output samples [samples]")
@@ -127,11 +126,9 @@ if is_training:
             loss.backward()
             optimizer.step()
 
+        print('[%d/%d] time: %.0f  loss: %.8f' % (epoch, FLAGS.epoch, time.time()-start_time, avg_loss/max(avg_loss_count,1)))
 
-        print('[%d/%d] time: %.0f  loss: %.8f  loss_bool: %.8f  loss_float: %.8f' % (epoch, FLAGS.epoch, time.time()-start_time, avg_loss/max(avg_loss_count,1), avg_acc_bool/max(avg_acc_bool_count,1), avg_acc_float/max(avg_acc_float_count,1)))
-
-
-        if epoch%FLAGS.checkpoint_save_frequency==FLAGS.checkpoint_save_frequency-1:
+        if epoch % FLAGS.checkpoint_save_frequency == FLAGS.checkpoint_save_frequency-1:
 
             # save weights
             print('saving net...')
