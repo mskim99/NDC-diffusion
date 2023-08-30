@@ -1,0 +1,5 @@
+Total# train 1906 sdf False True
+Non-trivial Total# 3812 sdf False True
+Total# test 477 sdf True True
+Non-trivial Total# 477 sdf True True
+Setting learning rate to 0.0001
