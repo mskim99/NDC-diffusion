@@ -151,10 +151,7 @@ if is_training:
                 pred_output_float_numpy = np.transpose(pred_output_float[0].detach().cpu().numpy(), [1,2,3,0])
 
                 pred_output_float_numpy = np.clip(pred_output_float_numpy,0,1)
-                if FLAGS.method == "undc":
-                    vertices, triangles = utils.dual_contouring_undc_test(pred_output_bool_numpy, pred_output_float_numpy)
-                else:
-                    vertices, triangles = utils.dual_contouring_ndc_test(pred_output_bool_numpy, pred_output_float_numpy)
+                vertices, triangles = utils.dual_contouring_ndc_test(pred_output_bool_numpy, pred_output_float_numpy)
                 utils.write_obj_triangle(FLAGS.sample_dir+"/test_"+str(i)+".obj", vertices, triangles)
 
                 if i>=32: break
@@ -211,7 +208,7 @@ elif quick_testing:
     network_float.eval()
 
     #Create test dataset
-    dataset_test = dataset.single_shape_grid(FLAGS.test_input, receptive_padding, FLAGS.input_type, is_undc=(FLAGS.method == "undc"))
+    dataset_test = dataset.single_shape_grid(FLAGS.test_input, receptive_padding, FLAGS.input_type)
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=1)  #batch_size must be 1
 
     for i, data in enumerate(dataloader_test, 0):
@@ -219,9 +216,6 @@ elif quick_testing:
         gt_input_, gt_output_bool_, gt_output_bool_mask_, gt_output_float_, gt_output_float_mask_ = data
 
         gt_input = gt_input_.to(device)
-        if FLAGS.method == "undc":
-            gt_output_bool_mask = gt_output_bool_mask_.to(device)
-
         with torch.no_grad():
             pred_output_float = network_float(gt_input)
 
@@ -230,9 +224,6 @@ elif quick_testing:
 
             pred_output_float_numpy = np.transpose(gt_output_float_[0].detach().cpu().numpy(), [1,2,3,0])
 
-pred_output_float_numpy = np.clip(pred_output_float_numpy,0,1)
-if FLAGS.method == "undc":
-    vertices, triangles = cutils.dual_contouring_undc(np.ascontiguousarray(pred_output_bool_numpy, np.int32), np.ascontiguousarray(pred_output_float_numpy, np.float32))
-else:
+    pred_output_float_numpy = np.clip(pred_output_float_numpy,0,1)
     vertices, triangles = cutils.dual_contouring_ndc(np.ascontiguousarray(pred_output_bool_numpy, np.int32), np.ascontiguousarray(pred_output_float_numpy, np.float32))
-utils.write_obj_triangle(FLAGS.sample_di + "/quicktest_" + FLAGS.method + "_" + FLAGS.input_type + ".obj", vertices, triangles)
+    utils.write_obj_triangle(FLAGS.sample_di + "/quicktest_" + FLAGS.method + "_" + FLAGS.input_type + ".obj", vertices, triangles)

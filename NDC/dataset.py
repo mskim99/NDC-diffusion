@@ -46,14 +46,17 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
         grid_size = self.file_gridsizes[index]
 
         if self.train:
-            gt_output_float_,gt_input_ = read_and_augment_data_ndc(self.data_dir, self.file_names[index], grid_size,
+            gt_output_bool_, gt_output_float_,gt_input_ = read_and_augment_data_ndc(self.data_dir, self.file_names[index], grid_size, self.train,
                                                                    aug_permutation=True,aug_reversal=True,aug_inversion=True)
         else:
             if self.input_only:
-                gt_output_float_,gt_input_ = read_data_input_only(self.data_dir, self.file_names[index], grid_size)
+                gt_output_bool_, gt_output_float_,gt_input_ = read_data_input_only(self.data_dir, self.file_names[index], grid_size)
             else:
-                gt_output_float_,gt_input_ = read_data(self.data_dir, self.file_names[index], grid_size)
+                gt_output_bool_, gt_output_float_,gt_input_ = read_data(self.data_dir, self.file_names[index], grid_size)
 
+        if not self.train:
+            gt_output_bool_ = np.transpose(gt_output_bool_, [3,0,1,2]).astype(np.float32)
+            gt_output_bool_mask_ = np.zeros(gt_output_bool_.shape, np.float32)
         gt_output_float_ = np.transpose(gt_output_float_, [3,0,1,2])
         gt_output_float_mask_ = (gt_output_float_>=0).astype(np.float32)
 
@@ -104,6 +107,9 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
             zmin = 0
             zmax = grid_size+1
 
+        if not self.train:
+            gt_output_bool = gt_output_bool_[:,xmin:xmax,ymin:ymax,zmin:zmax]
+            gt_output_bool_mask = gt_output_bool_mask_[:,xmin:xmax,ymin:ymax,zmin:zmax]
         gt_output_float = gt_output_float_[:,xmin:xmax,ymin:ymax,zmin:zmax]
         gt_output_float_mask = gt_output_float_mask_[:,xmin:xmax,ymin:ymax,zmin:zmax]
 
@@ -151,7 +157,10 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
         #clip to ignore far-away cells
         gt_input = np.clip(gt_input, -2, 2)
 
-        return gt_input, gt_output_float, gt_output_float_mask
+        if self.train:
+            return gt_input, gt_output_float, gt_output_float_mask
+        else: # Test State
+            return gt_input, gt_output_bool, gt_output_bool_mask, gt_output_float, gt_output_float_mask
 
 
 #only for testing

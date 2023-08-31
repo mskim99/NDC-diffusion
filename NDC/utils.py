@@ -14,25 +14,33 @@ def read_sdf_file_as_3d_array(name):
     return data
 
 
-def read_data_input_only(data_dir, file_name, grid_size):
+def read_data_input_only(data_dir, file_name, grid_size, train):
+    if not train:
+        LOD_gt_int = np.zeros([grid_size+1,grid_size+1,grid_size+1,3], np.int32)
+    else:
+        LOD_gt_int = None
     LOD_gt_float = np.zeros([grid_size+1,grid_size+1,grid_size+1,3],np.float32)
     LOD_input = np.load(data_dir + '/res_' + str(grid_size) + '/' + file_name + '.npy')
     LOD_input = LOD_input*grid_size # denormalize
-    return LOD_gt_float, LOD_input
+    return LOD_gt_int, LOD_gt_float, LOD_input
 
 
-def read_data(data_dir, file_name, grid_size):
+def read_data(data_dir, file_name, grid_size, train):
+    if not train:
+        LOD_gt_int = np.load(data_dir + '/res_' + str(grid_size) + '_int/' + file_name + '.npy')
+    else:
+        LOD_gt_int = None
     LOD_gt_float = np.load(data_dir + '/res_' + str(grid_size) + '_float/' + file_name + '.npy')
     LOD_input = np.load(data_dir + '/res_' + str(grid_size) + '/' + file_name + '.npy')
     LOD_input = LOD_input*grid_size # denormalize
-    return LOD_gt_float, LOD_input
+    return LOD_gt_int, LOD_gt_float, LOD_input
 
 
-def read_and_augment_data_ndc(data_dir, file_name, grid_size, aug_permutation=True, aug_reversal=True, aug_inversion=True):
+def read_and_augment_data_ndc(data_dir, file_name, grid_size, train, aug_permutation=True, aug_reversal=True, aug_inversion=True):
     grid_size_1 = grid_size+1
 
     # read input hdf5
-    LOD_gt_float, LOD_input = read_data(data_dir, file_name, grid_size)
+    LOD_gt_int, LOD_gt_float, LOD_input = read_data(data_dir, file_name, grid_size, train)
 
     newdict = {}
 
@@ -119,7 +127,99 @@ def read_and_augment_data_ndc(data_dir, file_name, grid_size, aug_permutation=Tr
     if inversion_flag:
         LOD_input = -LOD_input
 
-    return LOD_gt_float, LOD_input
+    return LOD_gt_int, LOD_gt_float, LOD_input
+
+
+# this is not an efficient implementation. just for testing!
+def dual_contouring_ndc_test(int_grid, float_grid):
+    all_vertices = []
+    all_triangles = []
+
+    int_grid = np.squeeze(int_grid)
+    dimx, dimy, dimz = int_grid.shape
+    vertices_grid = np.full([dimx, dimy, dimz], -1, np.int32)
+
+    # all vertices
+    for i in range(0, dimx - 1):
+        for j in range(0, dimy - 1):
+            for k in range(0, dimz - 1):
+
+                v0 = int_grid[i, j, k]
+                v1 = int_grid[i + 1, j, k]
+                v2 = int_grid[i + 1, j + 1, k]
+                v3 = int_grid[i, j + 1, k]
+                v4 = int_grid[i, j, k + 1]
+                v5 = int_grid[i + 1, j, k + 1]
+                v6 = int_grid[i + 1, j + 1, k + 1]
+                v7 = int_grid[i, j + 1, k + 1]
+
+                if v1 != v0 or v2 != v0 or v3 != v0 or v4 != v0 or v5 != v0 or v6 != v0 or v7 != v0:
+                    # add a vertex
+                    vertices_grid[i, j, k] = len(all_vertices)
+                    pos = float_grid[i, j, k] + np.array([i, j, k], np.float32)
+                    all_vertices.append(pos)
+
+    all_vertices = np.array(all_vertices, np.float32)
+
+    # all triangles
+
+    # i-direction
+    for i in range(0, dimx - 1):
+        for j in range(1, dimy - 1):
+            for k in range(1, dimz - 1):
+                v0 = int_grid[i, j, k]
+                v1 = int_grid[i + 1, j, k]
+                if v0 != v1:
+                    if v0 == 0:
+                        all_triangles.append(
+                            [vertices_grid[i, j - 1, k - 1], vertices_grid[i, j, k], vertices_grid[i, j, k - 1]])
+                        all_triangles.append(
+                            [vertices_grid[i, j - 1, k - 1], vertices_grid[i, j - 1, k], vertices_grid[i, j, k]])
+                    else:
+                        all_triangles.append(
+                            [vertices_grid[i, j - 1, k - 1], vertices_grid[i, j, k - 1], vertices_grid[i, j, k]])
+                        all_triangles.append(
+                            [vertices_grid[i, j - 1, k - 1], vertices_grid[i, j, k], vertices_grid[i, j - 1, k]])
+
+    # j-direction
+    for i in range(1, dimx - 1):
+        for j in range(0, dimy - 1):
+            for k in range(1, dimz - 1):
+                v0 = int_grid[i, j, k]
+                v1 = int_grid[i, j + 1, k]
+                if v0 != v1:
+                    if v0 == 0:
+                        all_triangles.append(
+                            [vertices_grid[i - 1, j, k - 1], vertices_grid[i, j, k - 1], vertices_grid[i, j, k]])
+                        all_triangles.append(
+                            [vertices_grid[i - 1, j, k - 1], vertices_grid[i, j, k], vertices_grid[i - 1, j, k]])
+                    else:
+                        all_triangles.append(
+                            [vertices_grid[i - 1, j, k - 1], vertices_grid[i, j, k], vertices_grid[i, j, k - 1]])
+                        all_triangles.append(
+                            [vertices_grid[i - 1, j, k - 1], vertices_grid[i - 1, j, k], vertices_grid[i, j, k]])
+
+    # k-direction
+    for i in range(1, dimx - 1):
+        for j in range(1, dimy - 1):
+            for k in range(0, dimz - 1):
+                v0 = int_grid[i, j, k]
+                v1 = int_grid[i, j, k + 1]
+                if v0 != v1:
+                    if v0 == 0:
+                        all_triangles.append(
+                            [vertices_grid[i - 1, j - 1, k], vertices_grid[i - 1, j, k], vertices_grid[i, j, k]])
+                        all_triangles.append(
+                            [vertices_grid[i - 1, j - 1, k], vertices_grid[i, j, k], vertices_grid[i, j - 1, k]])
+                    else:
+                        all_triangles.append(
+                            [vertices_grid[i - 1, j - 1, k], vertices_grid[i, j, k], vertices_grid[i - 1, j, k]])
+                        all_triangles.append(
+                            [vertices_grid[i - 1, j - 1, k], vertices_grid[i, j - 1, k], vertices_grid[i, j, k]])
+
+    all_triangles = np.array(all_triangles, np.int32)
+
+    return all_vertices, all_triangles
 
 
 def write_obj_triangle(name, vertices, triangles):
