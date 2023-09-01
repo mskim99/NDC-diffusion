@@ -211,7 +211,6 @@ class CNN_3d_rec7(nn.Module):
 
     def forward(self, x):
         out = x
-
         out = self.conv_0(out)
         out = F.leaky_relu(out, negative_slope=0.01, inplace=True)
 

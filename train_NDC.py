@@ -58,12 +58,10 @@ if not os.path.exists(FLAGS.checkpoint_dir):
 device = torch.device('cuda')
 torch.backends.cudnn.benchmark = True
 
-#Create network
+# Create network
 CNN_3d = model.CNN_3d_rec7
-
-#Create network
-receptive_padding = 3 #for grid input
-pooling_radius = 2 #for pointcloud input
+receptive_padding = 3 # for grid input
+pooling_radius = 2 # for pointcloud input
 KNN_num = 8
 
 network_float = CNN_3d(out_bool=False, out_float=True)
@@ -77,8 +75,8 @@ def worker_init_fn(worker_id):
 if is_training:
 
     # Create train / test dataset
-    dataset_train = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, FLAGS.input_type, train=True)
-    dataset_test = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, FLAGS.input_type, train=False)
+    dataset_train = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, train=True)
+    dataset_test = dataset.ABC_grid_hdf5(FLAGS.data_dir, FLAGS.grid_size, receptive_padding, train=False)
 
     dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=1, shuffle=True, num_workers=16, worker_init_fn=worker_init_fn) #batch_size must be 1
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=16)  #batch_size must be 1
@@ -112,6 +110,8 @@ if is_training:
             optimizer.zero_grad()
 
             pred_output_float = network_float(gt_input)
+
+            print(pred_output_float.shape)
 
             #MSE
             loss_float = torch.sum(( (pred_output_float-gt_output_float)**2 )*gt_output_float_mask)/torch.clamp(torch.sum(gt_output_float_mask),min=1)

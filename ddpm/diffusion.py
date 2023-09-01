@@ -750,7 +750,7 @@ class GaussianDiffusion(nn.Module):
         b = shape[0]
         img = torch.randn(shape, device=device)
 
-        for i in tqdm(reversed(range(0, self.num_timesteps)), desc='sampling loop time step', total=self.num_timesteps):
+        for i in tqdm(reversed(range(0, self.num_timesteps)), total=self.num_timesteps):
             img = self.p_sample(img, torch.full(
                 (b,), i, device=device, dtype=torch.long), cond=cond, cond_scale=cond_scale)
 
@@ -959,7 +959,6 @@ class Trainer(object):
     def __init__(
         self,
         diffusion_model,
-        cfg,
         folder=None,
         dataset=None,
         *,
@@ -997,7 +996,6 @@ class Trainer(object):
         channels = diffusion_model.channels
         num_frames = diffusion_model.num_frames
 
-        self.cfg = cfg
         if dataset_use:
             if dataset:
                 self.ds = dataset

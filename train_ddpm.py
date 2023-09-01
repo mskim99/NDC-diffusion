@@ -43,7 +43,6 @@ def run(cfg: DictConfig):
 
     trainer = Trainer(
         diffusion,
-        cfg=cfg,
         dataset=train_dataset,
         train_batch_size=cfg.model.batch_size,
         save_and_sample_every=cfg.model.save_and_sample_every,

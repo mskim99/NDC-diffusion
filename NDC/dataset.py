@@ -3,12 +3,11 @@ import torch
 from NDC.utils import read_data,read_and_augment_data_ndc,read_data_input_only, read_sdf_file_as_3d_array
 
 class ABC_grid_hdf5(torch.utils.data.Dataset):
-    def __init__(self, data_dir, output_grid_size, receptive_padding, input_type, train, input_only=False):
+    def __init__(self, data_dir, output_grid_size, receptive_padding, train, input_only=False):
         self.data_dir = data_dir
         self.output_grid_size = output_grid_size
         self.receptive_padding = receptive_padding
         self.train = train
-        self.input_type = input_type
         self.input_only = input_only
 
         fin = open("abc_obj_list.txt", 'r')
@@ -17,10 +16,10 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
 
         if self.train:
             self.file_names = self.file_names[:int(len(self.file_names)*0.8)]
-            print("Total#", "train", len(self.file_names), self.input_type)
+            print("Total#", "train", len(self.file_names))
         else:
             self.file_names = self.file_names[int(len(self.file_names)*0.8):]
-            print("Total#", "test", len(self.file_names), self.input_type)
+            print("Total#", "test", len(self.file_names))
 
         temp_file_names = []
         temp_file_gridsizes = []
@@ -36,7 +35,7 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
 
         self.file_names = temp_file_names
         self.file_gridsizes = temp_file_gridsizes
-        print("Non-trivial Total#", len(self.file_names), self.input_type)
+        print("Non-trivial Total#", len(self.file_names))
 
     def __len__(self):
         return len(self.file_names)
@@ -165,10 +164,9 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
 
 #only for testing
 class single_shape_grid(torch.utils.data.Dataset):
-    def __init__(self, data_dir, receptive_padding, input_type):
+    def __init__(self, data_dir, receptive_padding):
         self.data_dir = data_dir
         self.receptive_padding = receptive_padding
-        self.input_type = input_type
 
     def __len__(self):
         return 1

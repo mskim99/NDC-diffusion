@@ -1,4 +1,10 @@
+import torch
+
 import numpy as np
+
+import sys
+sys.path.append('../')
+from NDC.cutils import dual_contouring_ndc
 
 # read sdf files produced by SDFGen
 def read_sdf_file_as_3d_array(name):
@@ -229,3 +235,20 @@ def write_obj_triangle(name, vertices, triangles):
     for ii in range(len(triangles)):
         fout.write("f "+str(int(triangles[ii,0]+1))+" "+str(int(triangles[ii,1]+1))+" "+str(int(triangles[ii,2]+1))+"\n")
     fout.close()
+
+
+def gen_mesh(ndf_network, sdf_gen, receptive_padding):
+    with torch.no_grad():
+        pred_output_float = ndf_network(sdf_gen)
+        gt_input_numpy = sdf_gen[0, 0, receptive_padding:-receptive_padding, receptive_padding:-receptive_padding,
+                         receptive_padding:-receptive_padding].detach().cpu().numpy()
+        pred_output_bool_numpy = np.expand_dims((gt_input_numpy < 0).astype(np.int32), axis=3)
+        pred_output_float_numpy = np.transpose(pred_output_float[0].detach().cpu().numpy(), [1, 2, 3, 0])
+        pred_output_float_numpy = np.clip(pred_output_float_numpy, 0, 1)
+        vertices, triangles = dual_contouring_ndc(np.ascontiguousarray(pred_output_bool_numpy, np.int32),
+                                                         np.ascontiguousarray(pred_output_float_numpy, np.float32))
+
+        # For Debugging
+        # write_obj_triangle("./quicktest_triangle.obj", vertices, triangles)
+
+        return vertices, triangles
