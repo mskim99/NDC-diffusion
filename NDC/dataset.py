@@ -1,6 +1,12 @@
 import numpy as np
 import torch
 from NDC.utils import read_data,read_and_augment_data_ndc,read_data_input_only, read_sdf_file_as_3d_array
+import torchvision.transforms as transforms
+
+import sys
+sys.path.append('../')
+from mesh.mesh import Mesh
+from mesh.mesh_util import pad, get_mean_std
 
 class ABC_grid_hdf5(torch.utils.data.Dataset):
     def __init__(self, data_dir, output_grid_size, receptive_padding, train, input_only=False):
@@ -9,10 +15,14 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
         self.receptive_padding = receptive_padding
         self.train = train
         self.input_only = input_only
-
         fin = open("abc_obj_list.txt", 'r')
         self.file_names = [name.strip() for name in fin.readlines()]
         fin.close()
+
+        m, s, ni = get_mean_std('/data/jionkim/gt_NDC_KISTI_SDF_npy')
+        self.mean = m
+        self.std = s
+        self.ninput_channels = ni
 
         if self.train:
             self.file_names = self.file_names[:int(len(self.file_names)*0.8)]
@@ -35,6 +45,7 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
 
         self.file_names = temp_file_names
         self.file_gridsizes = temp_file_gridsizes
+        self.transform = transforms.Compose([transforms.ToTensor()])
         print("Non-trivial Total#", len(self.file_names))
 
     def __len__(self):
@@ -152,14 +163,29 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
 
         gt_input[:,xmin_pad:xmax_pad,ymin_pad:ymax_pad,zmin_pad:zmax_pad] = gt_input_[:,xmin:xmax,ymin:ymax,zmin:zmax]
 
-        #the current code assumes that each cell in the input is a unit cube
-        #clip to ignore far-away cells
+        # the current code assumes that each cell in the input is a unit cube
+        # clip to ignore far-away cells
         gt_input = np.clip(gt_input, -2, 2)
 
+        # load mesh
+        mesh = Mesh(file=self.data_dir+'/mesh/'+self.file_names[index]+'.obj')
+        meta = {'mesh': mesh, 'gt_input': gt_input, 'gt_output_float': gt_output_float, 'gt_output_float_mask': gt_output_float_mask}
+        edge_features = mesh.extract_features()
+        edge_features = pad(edge_features, mesh.edges_count)
+        edge_features = (edge_features - self.mean) / self.std
+        meta['edge_features'] = (edge_features - self.mean) / self.std
+        '''
         if self.train:
             return gt_input, gt_output_float, gt_output_float_mask
         else: # Test State
             return gt_input, gt_output_bool, gt_output_bool_mask, gt_output_float, gt_output_float_mask
+            '''
+
+        if not self.train:
+            meta['gt_output_bool'] = gt_output_bool
+            meta['gt_output_bool_mask'] = gt_output_bool_mask
+
+        return meta
 
 
 #only for testing
