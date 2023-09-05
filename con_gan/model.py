@@ -17,10 +17,10 @@ class Generator(nn.Module):
         self.ddpm = ddpm
         self.receptive_padding = receptive_padding
 
-    def forward(self):
+    def forward(self, gt_sdf):
         ddpm_output = self.ddpm.sample(batch_size=1)
         ddpm_output = ddpm_output.clone()
-        vertices, triangles, mesh = gen_mesh(self.NDC, ddpm_output, self.receptive_padding)
+        vertices, triangles, mesh = gen_mesh(self.NDC, gt_sdf, self.receptive_padding)
         return vertices, triangles, mesh
 
 
@@ -63,6 +63,7 @@ class Discriminator(nn.Module):
             print(x.shape)
             print('###### Endloop #######')
 
+
         print(x.shape)
         x = self.gp(x)
         print(x.shape)
@@ -88,21 +89,22 @@ class MResConv(nn.Module):
                     MeshConv(self.out_channels, self.out_channels, device_num=device_num, bias=False))
 
     def forward(self, x, mesh):
-        print('###### MResConv ######')
-        print(x.shape)
+        # print('###### MResConv ######')
+        # print(x.shape)
         x = self.conv0(x, mesh)
-        print(x.shape)
+        # print(x.shape)
         x1 = x
         for i in range(self.skips):
             x = getattr(self, 'bn{}'.format(i + 1))(F.relu(x))
-            print(x.shape)
+            # print(x.shape)
             x = getattr(self, 'conv{}'.format(i + 1))(x, mesh)
-            print(x.shape)
+            # print(x.shape)
+            x = F.softmax(x)
         x += x1
-        print(x.shape)
+        # print(x.shape)
         x = F.relu(x)
-        print(x.shape)
-        print('###################')
+        # print(x.shape)
+        # print('###################')
         return x
 
 

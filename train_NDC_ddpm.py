@@ -1,4 +1,5 @@
 import torch
+torch.backends.cudnn.enabled = False
 
 import numpy as np
 
@@ -26,7 +27,7 @@ def collate_fn(batch):
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--epoch", action="store", dest="epoch", default=1000, type=int, help="Epoch to train [400,250,25]")
-parser.add_argument("--train_lr", action="store", dest="train_lr", default=0.0001, type=float, help="Learning rate [0.0001]")
+parser.add_argument("--train_lr", action="store", dest="train_lr", default=1e-7, type=float, help="Learning rate [0.0001]")
 
 parser.add_argument("--img_size", action="store", dest="img_size", default=32, type=int, help="Input image size")
 parser.add_argument("--dim_mults", action="store", dest="dim_mults", default=[1,2,4,8], type=list, help="Dimension Multiplication")
@@ -136,6 +137,7 @@ for epoch in range(cfg.train_num_steps):
         gt_edge_features_ = data['edge_features']
         gt_input_ = data['gt_input']
         gt_mesh_ = data['mesh']
+        gt_output_float_ = data['gt_output_float']
 
         # Adversarial ground truths
         valid = torch.full(gt_input_.shape, 1.0)
@@ -149,10 +151,12 @@ for epoch in range(cfg.train_num_steps):
         # z = torch.rand([8, 1, 32, 32, 32]).cuda()
 
         # Generate vertices & triangles of mesh
-        vertices, triangles, gen_mesh_ = generator()
+        gt_input = torch.Tensor(gt_input_).cuda()
+        vertices, triangles, gen_mesh_ = generator(gt_sdf=gt_input)
         gen_mesh = (gen_mesh_,)
         gen_mesh = np.array(gen_mesh)
         gen_edge_features = dataset_NDC.ABC_grid_hdf5.extract_edge_features(self=dataset_train, mesh=gen_mesh_)
+        # gen_edge_features = gen_edge_features[:, 0:4500]
 
         gt_edge_features = torch.Tensor(gt_edge_features_).cuda()
         gen_edge_features = torch.Tensor(gen_edge_features).cuda()
@@ -164,7 +168,7 @@ for epoch in range(cfg.train_num_steps):
         print(dis_output_gt)
         print(dis_output_gen)
 
-        exit()
+        # exit()
 
         # Loss measures generator's ability to fool the discriminator
         #  g_loss = adversarial_loss(discriminator(gen_imgs), valid)

@@ -145,33 +145,33 @@ class MeshConvNet(nn.Module):
 
     def forward(self, x, mesh):
 
-        print('###### MeshConvNet #######')
-        print(self.k)
-        print(len(self.k))
-        print(x.shape)
+        # print('###### MeshConvNet #######')
+        # print(self.k)
+        # print(len(self.k))
+        # print(x.shape)
         for i in range(len(self.k) - 1):
-            print('###### Loop' + str(i) + '#######')
+            # print('###### Loop' + str(i) + '#######')
             x = getattr(self, 'conv{}'.format(i))(x, mesh)
-            print('conv{}'.format(i))
-            print(x.shape)
+            # print('conv{}'.format(i))
+            # print(x.shape)
             x = F.relu(getattr(self, 'norm{}'.format(i))(x))
-            print('norm{}'.format(i))
-            print(x.shape)
+            # print('norm{}'.format(i))
+            # print(x.shape)
             x = getattr(self, 'pool{}'.format(i))(x, mesh)
-            print('pool{}'.format(i))
-            print(x.shape)
-            print('###### Endloop #######')
+            # print('pool{}'.format(i))
+            # print(x.shape)
+            # print('###### Endloop #######')
 
-        print(x.shape)
+        # print(x.shape)
         x = self.gp(x)
-        print(x.shape)
+        # print(x.shape)
         x = x.view(-1, self.k[-1])
 
-        print(x.shape)
+        # print(x.shape)
         x = F.relu(self.fc1(x))
-        print(x.shape)
+        # print(x.shape)
         x = self.fc2(x)
-        print('###################')
+        # print('###################')
         return x
 
 class MResConv(nn.Module):
@@ -187,16 +187,16 @@ class MResConv(nn.Module):
                     MeshConv(self.out_channels, self.out_channels, bias=False))
 
     def forward(self, x, mesh):
-        print('###### MResConv ######')
-        print(x.shape)
+        # print('###### MResConv ######')
+        # print(x.shape)
         x = self.conv0(x, mesh)
-        print(x.shape)
+        # print(x.shape)
         x1 = x
         for i in range(self.skips):
             x = getattr(self, 'bn{}'.format(i + 1))(F.relu(x))
-            print(x.shape)
+            # print(x.shape)
             x = getattr(self, 'conv{}'.format(i + 1))(x, mesh)
-            print(x.shape)
+            # print(x.shape)
         x += x1
         print(x.shape)
         x = F.relu(x)

@@ -19,8 +19,7 @@ class MeshConv(nn.Module):
         return self.forward(edge_f, mesh)
 
     def forward(self, x, mesh):
-        if x.dim() >= 4:
-            x = x.squeeze(-1)
+        x = x.squeeze(-1)
         G = torch.cat([self.pad_gemm(i, x.shape[2], self.device) for i in mesh], 0)
         # G = torch.cat([self.pad_gemm(mesh[0], x.shape[2], self.device)], 0)
         # build 'neighborhood image' and apply convolution
@@ -45,6 +44,7 @@ class MeshConv(nn.Module):
         returns a 'fake image' which can use 2d convolution on
         output dimensions: Batch x Channels x Edges x 5
         """
+
         Gishape = Gi.shape
         # pad the first row of  every sample in batch with zeros
         padding = torch.zeros((x.shape[0], x.shape[1], 1), requires_grad=True, device=self.device)
@@ -79,7 +79,14 @@ class MeshConv(nn.Module):
         then pad to desired size e.g., xsz x 5
         """
         padded_gemm = torch.tensor(m.gemm_edges, device=device).float()
+        padded_gemm[padded_gemm >= xsz] = -1
         padded_gemm = padded_gemm.requires_grad_()
+
+        if m.edges_count != padded_gemm.shape[0]:
+            min_value = min(m.edges_count, padded_gemm.shape[0])
+            m.edges_count = min_value
+            padded_gemm = padded_gemm[0:min_value, :]
+
         padded_gemm = torch.cat((torch.arange(m.edges_count, device=device).float().unsqueeze(1), padded_gemm), dim=1)
         # pad using F
         padded_gemm = F.pad(padded_gemm, (0, 0, 0, xsz - m.edges_count), "constant", 0)

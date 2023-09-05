@@ -56,6 +56,18 @@ class Mesh:
     def clean(self, edges_mask, groups):
         edges_mask = edges_mask.astype(bool)
         torch_mask = torch.from_numpy(edges_mask.copy())
+
+        print(self.gemm_edges.shape[0])
+        print(edges_mask.shape[0])
+        if self.gemm_edges.shape[0] > edges_mask.shape[0]:
+            self.gemm_edges = self.gemm_edges[0:edges_mask.shape[0], :]
+            self.edges = self.edges[0:edges_mask.shape[0], :]
+            self.sides = self.sides[0:edges_mask.shape[0], :]
+
+            self.gemm_edges[self.gemm_edges > edges_mask.shape[0]] = -1
+            self.edges[self.edges > edges_mask.shape[0]] = -1
+            self.sides[self.sides > edges_mask.shape[0]] = -1
+
         self.gemm_edges = self.gemm_edges[edges_mask]
         self.edges = self.edges[edges_mask]
         self.sides = self.sides[edges_mask]

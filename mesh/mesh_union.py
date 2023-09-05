@@ -9,7 +9,8 @@ class MeshUnion:
         self.groups = torch.eye(n, device=device)
 
     def union(self, source, target):
-        self.groups[target, :] += self.groups[source, :]
+        if target < self.groups.shape[0] and source < self.groups.shape[0]:
+            self.groups[target, :] += self.groups[source, :]
 
     def remove_group(self, index):
         return
@@ -39,7 +40,8 @@ class MeshUnion:
         tensor_mask = torch.from_numpy(mask)
         # self.groups = torch.clamp(self.groups[tensor_mask, :], 0, 1).transpose_(1, 0)
         tm = self.groups[tensor_mask, :]
-        tm = tm[0:target_edges, :]
+        if tm.shape[0] > target_edges:
+            tm = tm[0:target_edges, :]
         grps = torch.clamp(tm, 0, 1)
         self.groups = grps.transpose_(1, 0)
         padding_a = features.shape[1] - self.groups.shape[0]

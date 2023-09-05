@@ -42,12 +42,16 @@ class MeshPool(nn.Module):
 
     def __pool_main(self, mesh_index):
         mesh = self.__meshes[mesh_index]
-        queue = self.__build_queue(self.__fe[mesh_index, :, :mesh.edges_count], mesh.edges_count)
+        queue, pec = self.__build_queue(self.__fe[mesh_index, :, :mesh.edges_count], mesh.edges_count)
         # recycle = []
         # last_queue_len = len(queue)
         last_count = mesh.edges_count + 1
-        mask = np.ones(mesh.edges_count, dtype=bool)
-        edge_groups = MeshUnion(mesh.edges_count, self.__fe.device)
+        if mesh.edges_count > pec:
+            mask = np.ones(pec, dtype=bool)
+            edge_groups = MeshUnion(pec, self.__fe.device)
+        else:
+            mask = np.ones(mesh.edges_count, dtype=bool)
+            edge_groups = MeshUnion(mesh.edges_count, self.__fe.device)
         while mesh.edges_count > self.__out_target:
             value, edge_id = heappop(queue)
             edge_id = int(edge_id)
@@ -182,8 +186,8 @@ class MeshPool(nn.Module):
             MeshPool.__remove_group(mesh, edge_groups, edge_key)
         mesh.edges_count -= 3
         vertex = list(vertex)
-        assert(len(vertex) == 1)
-        mesh.remove_vertex(vertex[0])
+        if len(vertex) == 1:
+            mesh.remove_vertex(vertex[0])
 
     def __build_queue(self, features, edges_count):
         # delete edges with smallest norm
@@ -191,9 +195,11 @@ class MeshPool(nn.Module):
         if squared_magnitude.shape[-1] != 1:
             squared_magnitude = squared_magnitude.unsqueeze(-1)
         edge_ids = torch.arange(edges_count, device=squared_magnitude.device, dtype=torch.float32).unsqueeze(-1)
+        if squared_magnitude.shape[0] != edge_ids.shape[0]:
+            edge_ids = edge_ids[0:squared_magnitude.shape[0], :]
         heap = torch.cat((squared_magnitude, edge_ids), dim=-1).tolist()
         heapify(heap)
-        return heap
+        return heap, squared_magnitude.shape[0]
 
     @staticmethod
     def __union_groups(mesh, edge_groups, source, target):

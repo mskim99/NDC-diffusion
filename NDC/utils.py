@@ -2,6 +2,8 @@ import torch
 import os
 import numpy as np
 
+import open3d as o3d
+
 import sys
 sys.path.append('../')
 from NDC.cutils import dual_contouring_ndc
@@ -250,8 +252,13 @@ def gen_mesh(ndf_network, sdf_gen, receptive_padding):
                                                          np.ascontiguousarray(pred_output_float_numpy, np.float32))
 
         # Generate Mesh
-        write_obj_triangle("./gen_write.obj", vertices, triangles)
+        o3d_vertices = o3d.utility.Vector3dVector(vertices)
+        o3d_triangles = o3d.utility.Vector3iVector(triangles)
+        mesh_np = o3d.geometry.TriangleMesh(o3d_vertices, o3d_triangles)
+        mesh_np_s = o3d.geometry.TriangleMesh.simplify_quadric_decimation(mesh_np, 1500)
+        o3d.io.write_triangle_mesh("./gen_write.obj", mesh_np_s)
+        # write_obj_triangle("./gen_write.obj", vertices, triangles)
         mesh = Mesh(file="./gen_write.obj")
-        os.remove("./gen_write.obj")
+        # os.remove("./gen_write.obj")
 
         return vertices, triangles, mesh
