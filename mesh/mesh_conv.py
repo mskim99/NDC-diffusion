@@ -9,17 +9,20 @@ class MeshConv(nn.Module):
     mesh: list of mesh data-structure (len(mesh) == Batch)
     and applies convolution
     """
-    def __init__(self, in_channels, out_channels, k=5, bias=True):
+    def __init__(self, in_channels, out_channels, device_num, k=5, bias=True):
         super(MeshConv, self).__init__()
         self.conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(1, k), bias=bias)
         self.k = k
+        self.device = 'cuda:' + str(device_num)
 
     def __call__(self, edge_f, mesh):
         return self.forward(edge_f, mesh)
 
     def forward(self, x, mesh):
-        x = x.squeeze(-1)
-        G = torch.cat([self.pad_gemm(i, x.shape[2], x.device) for i in mesh], 0)
+        if x.dim() >= 4:
+            x = x.squeeze(-1)
+        G = torch.cat([self.pad_gemm(i, x.shape[2], self.device) for i in mesh], 0)
+        # G = torch.cat([self.pad_gemm(mesh[0], x.shape[2], self.device)], 0)
         # build 'neighborhood image' and apply convolution
         G = self.create_GeMM(x, G)
         x = self.conv(G)
@@ -44,7 +47,7 @@ class MeshConv(nn.Module):
         """
         Gishape = Gi.shape
         # pad the first row of  every sample in batch with zeros
-        padding = torch.zeros((x.shape[0], x.shape[1], 1), requires_grad=True, device=x.device)
+        padding = torch.zeros((x.shape[0], x.shape[1], 1), requires_grad=True, device=self.device)
         # padding = padding.to(x.device)
         x = torch.cat((padding, x), dim=2)
         Gi = Gi + 1 #shift

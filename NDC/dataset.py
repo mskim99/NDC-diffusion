@@ -9,6 +9,13 @@ from mesh.mesh import Mesh
 from mesh.mesh_util import pad, get_mean_std
 
 class ABC_grid_hdf5(torch.utils.data.Dataset):
+
+    def extract_edge_features(self, mesh):
+        edge_features = mesh.extract_features()
+        edge_features = pad(edge_features, mesh.edges_count)
+        edge_features = (edge_features - self.mean) / self.std
+        return edge_features
+
     def __init__(self, data_dir, output_grid_size, receptive_padding, train, input_only=False):
         self.data_dir = data_dir
         self.output_grid_size = output_grid_size
@@ -168,12 +175,15 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
         gt_input = np.clip(gt_input, -2, 2)
 
         # load mesh
-        mesh = Mesh(file=self.data_dir+'/mesh/'+self.file_names[index]+'.obj')
+        mesh = Mesh(file=self.data_dir+'/mesh_f_3000/'+self.file_names[index]+'.obj')
         meta = {'mesh': mesh, 'gt_input': gt_input, 'gt_output_float': gt_output_float, 'gt_output_float_mask': gt_output_float_mask}
+        edge_features = self.extract_edge_features(mesh)
+        '''
         edge_features = mesh.extract_features()
         edge_features = pad(edge_features, mesh.edges_count)
         edge_features = (edge_features - self.mean) / self.std
-        meta['edge_features'] = (edge_features - self.mean) / self.std
+        '''
+        meta['edge_features'] = edge_features
         '''
         if self.train:
             return gt_input, gt_output_float, gt_output_float_mask

@@ -25,7 +25,7 @@ class MeshUnion:
         return self.groups[tensor_mask, :]
 
     def rebuild_features_average(self, features, mask, target_edges):
-        self.prepare_groups(features, mask)
+        self.prepare_groups(features, mask, target_edges)
         fe = torch.matmul(features.squeeze(-1), self.groups)
         occurrences = torch.sum(self.groups, 0).expand(fe.shape)
         fe = fe / occurrences
@@ -35,9 +35,13 @@ class MeshUnion:
             fe = padding_b(fe)
         return fe
 
-    def prepare_groups(self, features, mask):
+    def prepare_groups(self, features, mask, target_edges):
         tensor_mask = torch.from_numpy(mask)
-        self.groups = torch.clamp(self.groups[tensor_mask, :], 0, 1).transpose_(1, 0)
+        # self.groups = torch.clamp(self.groups[tensor_mask, :], 0, 1).transpose_(1, 0)
+        tm = self.groups[tensor_mask, :]
+        tm = tm[0:target_edges, :]
+        grps = torch.clamp(tm, 0, 1)
+        self.groups = grps.transpose_(1, 0)
         padding_a = features.shape[1] - self.groups.shape[0]
         if padding_a > 0:
             padding_a = ConstantPad2d((0, 0, 0, padding_a), 0)

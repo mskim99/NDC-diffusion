@@ -6,6 +6,8 @@ import sys
 sys.path.append('../')
 from mesh.mesh import Mesh
 
+# from mesh import Mesh
+
 def pad(input_arr, target_length, val=0, dim=1):
     shp = input_arr.shape
     npad = [(0, 0) for _ in range(len(shp))]
@@ -28,8 +30,8 @@ def get_mean_std(root_dir):
         mean, std = np.array(0), np.array(0)
         for i in range (1, 2384):
             if i % 100 == 0:
-                print('{} of {}'.format(i, 2384))
-            mesh = Mesh(file=root_dir+'/mesh/'+str(i).zfill(5)+'.obj')
+                print('{} of {}'.format(i, 2383))
+            mesh = Mesh(file=root_dir+'/mesh_f_3000/'+str(i).zfill(5)+'.obj')
             edge_features = mesh.extract_features()
             edge_features = pad(edge_features, mesh.edges_count)
             mean = mean + edge_features.mean(axis=1)
@@ -52,3 +54,5 @@ def get_mean_std(root_dir):
 
     return mean, std, ninput_channels
 
+if __name__ == "__main__":
+    _, _, _ = get_mean_std('/data/jionkim/gt_NDC_KISTI_SDF_npy')

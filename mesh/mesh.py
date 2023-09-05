@@ -9,7 +9,10 @@ sys.path.append('../')
 from mesh.mesh_union import MeshUnion
 from mesh.mesh_prepare import fill_mesh
 
-
+'''
+from mesh_union import MeshUnion
+from mesh_prepare import fill_mesh
+'''
 class Mesh:
 
     def __init__(self, file=None, opt=None, hold_history=False, export_folder=''):

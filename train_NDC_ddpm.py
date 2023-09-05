@@ -31,7 +31,7 @@ parser.add_argument("--train_lr", action="store", dest="train_lr", default=0.000
 parser.add_argument("--img_size", action="store", dest="img_size", default=32, type=int, help="Input image size")
 parser.add_argument("--dim_mults", action="store", dest="dim_mults", default=[1,2,4,8], type=list, help="Dimension Multiplication")
 parser.add_argument("--num_channels", action="store", dest="num_channels", default=8, type=int, help="Number of channels")
-parser.add_argument("--timesteps", action="store", dest="timesteps", default=300, type=int, help="Number of timesteps")
+parser.add_argument("--timesteps", action="store", dest="timesteps", default=10, type=int, help="Number of timesteps")
 parser.add_argument("--loss_type", action="store", dest="loss_type", default='l1', type=str, help="Loss type")
 parser.add_argument("--denoising_fn", action="store", dest="denoising_fn", default='Unet3D', type=str, help="Denoising function")
 
@@ -47,7 +47,7 @@ parser.add_argument("--results_folder", action="store", dest="results_folder", d
 parser.add_argument("--num_workers", action="store", dest="num_workers", default=1, type=float, help="Number of workers")
 
 parser.add_argument("--postprocessing", action="store_true", dest="postprocessing", default=False, help="Enable the post-processing step to close small holes [False]")
-parser.add_argument("--gpu", action="store", dest="gpu", default="1", help="to use which GPU [0]")
+parser.add_argument("--gpu", action="store", dest="gpu", default="0", help="to use which GPU [0]")
 
 cfg = parser.parse_args()
 
@@ -117,13 +117,14 @@ dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=1, shuf
 # dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=cfg.num_workers, collate_fn=collate_fn)
 
 generator = Generator(NDC=NDC_network, ddpm=ddpm_model.ema_model, receptive_padding=receptive_padding)
-# discriminator = Discriminator()
+discriminator = Discriminator(nf0=5, conv_res=[64, 128, 256, 256], nclasses=1, input_res=750, pool_res=[600, 450, 300, 180],
+                              fc_n=1, norm='group', num_groups=cfg.num_workers, device_num=cfg.gpu)
 
 generator.cuda()
-# discriminator.cuda()
+discriminator.cuda()
 
 optimizer_G = torch.optim.Adam(generator.parameters())
-# optimizer_D = torch.optim.Adam(discriminator.parameters())
+optimizer_D = torch.optim.Adam(discriminator.parameters())
 
 adversarial_loss = torch.nn.BCELoss()
 
@@ -132,6 +133,7 @@ for epoch in range(cfg.train_num_steps):
     for i, data in enumerate(dataloader_train):
 
         # Configure input
+        gt_edge_features_ = data['edge_features']
         gt_input_ = data['gt_input']
         gt_mesh_ = data['mesh']
 
@@ -147,10 +149,20 @@ for epoch in range(cfg.train_num_steps):
         # z = torch.rand([8, 1, 32, 32, 32]).cuda()
 
         # Generate vertices & triangles of mesh
-        vertices, triangles = generator()
+        vertices, triangles, gen_mesh_ = generator()
+        gen_mesh = (gen_mesh_,)
+        gen_mesh = np.array(gen_mesh)
+        gen_edge_features = dataset_NDC.ABC_grid_hdf5.extract_edge_features(self=dataset_train, mesh=gen_mesh_)
 
-        print(vertices.shape)
-        print(triangles.shape)
+        gt_edge_features = torch.Tensor(gt_edge_features_).cuda()
+        gen_edge_features = torch.Tensor(gen_edge_features).cuda()
+        gen_edge_features = torch.unsqueeze(gen_edge_features, 0)
+
+        dis_output_gt = discriminator(gt_edge_features, gt_mesh_)
+        dis_output_gen = discriminator(gen_edge_features, gen_mesh)
+
+        print(dis_output_gt)
+        print(dis_output_gen)
 
         exit()
 

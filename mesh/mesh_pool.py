@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
 from threading import Thread
-from mesh_union import MeshUnion
 import numpy as np
 from heapq import heappop, heapify
 
+import sys
+sys.path.append('../')
+from mesh.mesh_union import MeshUnion
 
 class MeshPool(nn.Module):
     
@@ -51,6 +53,8 @@ class MeshPool(nn.Module):
             edge_id = int(edge_id)
             if mask[edge_id]:
                 self.__pool_edge(mesh, edge_id, mask, edge_groups)
+            if len(queue) <= 0:
+                break
         mesh.clean(mask, edge_groups)
         fe = edge_groups.rebuild_features(self.__fe[mesh_index], mask, self.__out_target)
         self.__updated_fe[mesh_index] = fe
