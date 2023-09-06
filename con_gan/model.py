@@ -46,32 +46,32 @@ class Discriminator(nn.Module):
 
     def forward(self, x, mesh):
 
-        print('# Discriminator (MeshConvNet) #')
-        print(self.k)
-        print(len(self.k))
-        print(x.shape)
+        # print('# Discriminator (MeshConvNet) #')
+        # print(self.k)
+        # print(len(self.k))
+        # print(x.shape)
         for i in range(len(self.k) - 1):
-            print('###### Loop' + str(i) + '#######')
+            # print('###### Loop' + str(i) + '#######')
             x = getattr(self, 'conv{}'.format(i))(x, mesh)
-            print('conv{}'.format(i))
-            print(x.shape)
+            # print('conv{}'.format(i))
+            # print(x.shape)
             x = F.relu(getattr(self, 'norm{}'.format(i))(x))
-            print('norm{}'.format(i))
-            print(x.shape)
+            # print('norm{}'.format(i))
+            # print(x.shape)
             x = getattr(self, 'pool{}'.format(i))(x, mesh)
-            print('pool{}'.format(i))
-            print(x.shape)
-            print('###### Endloop #######')
+            # print('pool{}'.format(i))
+            # print(x.shape)
+            # print('###### Endloop #######')
 
 
-        print(x.shape)
+        # print(x.shape)
         x = self.gp(x)
-        print(x.shape)
+        # print(x.shape)
         x = x.view(-1, self.k[-1])
 
-        print(x.shape)
+        # print(x.shape)
         x = F.relu(self.fc1(x))
-        print(x.shape)
+        # print(x.shape)
         x = self.fc2(x)
         return x
 

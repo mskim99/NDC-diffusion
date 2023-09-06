@@ -114,10 +114,11 @@ class MeshPool(nn.Module):
         self.__redirect_edges(mesh, key_a, side_a - side_a % 2 + 1, other_keys_b[1], mesh.sides[key_b, other_side_b + 1])
         MeshPool.__union_groups(mesh, edge_groups, key_b, key_a)
         MeshPool.__union_groups(mesh, edge_groups, edge_id, key_a)
-        mask[key_b] = False
-        MeshPool.__remove_group(mesh, edge_groups, key_b)
-        mesh.remove_edge(key_b)
-        mesh.edges_count -= 1
+        if key_b < mask.shape[0]:
+            mask[key_b] = False
+            MeshPool.__remove_group(mesh, edge_groups, key_b)
+            mesh.remove_edge(key_b)
+            mesh.edges_count -= 1
         return key_a
 
     @staticmethod
@@ -182,8 +183,9 @@ class MeshPool(nn.Module):
         vertex = set(mesh.edges[invalid_edges[0]])
         for edge_key in invalid_edges:
             vertex &= set(mesh.edges[edge_key])
-            mask[edge_key] = False
-            MeshPool.__remove_group(mesh, edge_groups, edge_key)
+            if edge_key < mask.shape[0]:
+                mask[edge_key] = False
+                MeshPool.__remove_group(mesh, edge_groups, edge_key)
         mesh.edges_count -= 3
         vertex = list(vertex)
         if len(vertex) == 1:

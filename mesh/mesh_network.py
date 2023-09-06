@@ -198,10 +198,10 @@ class MResConv(nn.Module):
             x = getattr(self, 'conv{}'.format(i + 1))(x, mesh)
             # print(x.shape)
         x += x1
-        print(x.shape)
+        # print(x.shape)
         x = F.relu(x)
-        print(x.shape)
-        print('###################')
+        # print(x.shape)
+        # print('###################')
         return x
 
 

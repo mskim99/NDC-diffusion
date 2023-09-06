@@ -57,8 +57,8 @@ class Mesh:
         edges_mask = edges_mask.astype(bool)
         torch_mask = torch.from_numpy(edges_mask.copy())
 
-        print(self.gemm_edges.shape[0])
-        print(edges_mask.shape[0])
+        # print(self.gemm_edges.shape[0])
+        # print(edges_mask.shape[0])
         if self.gemm_edges.shape[0] > edges_mask.shape[0]:
             self.gemm_edges = self.gemm_edges[0:edges_mask.shape[0], :]
             self.edges = self.edges[0:edges_mask.shape[0], :]
@@ -81,7 +81,8 @@ class Mesh:
             update_ve = []
             # if self.v_mask[v_index]:
             for e in ve:
-                update_ve.append(new_indices[e])
+                if e < new_indices.shape[0]:
+                    update_ve.append(new_indices[e])
             new_ve.append(update_ve)
         self.ve = new_ve
         self.__clean_history(groups, torch_mask)
