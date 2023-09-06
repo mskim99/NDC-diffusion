@@ -51,7 +51,8 @@ class Mesh:
             if edge_id not in self.ve[v]:
                 print(self.ve[v])
                 print(self.filename)
-            self.ve[v].remove(edge_id)
+            if edge_id in self.ve[v]:
+                self.ve[v].remove(edge_id)
 
     def clean(self, edges_mask, groups):
         edges_mask = edges_mask.astype(bool)
