@@ -48,9 +48,11 @@ class Mesh:
     def remove_edge(self, edge_id):
         vs = self.edges[edge_id]
         for v in vs:
+            '''
             if edge_id not in self.ve[v]:
                 print(self.ve[v])
                 print(self.filename)
+                '''
             if edge_id in self.ve[v]:
                 self.ve[v].remove(edge_id)
 

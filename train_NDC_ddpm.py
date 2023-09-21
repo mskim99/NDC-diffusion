@@ -1,5 +1,6 @@
 import torch
 torch.backends.cudnn.enabled = False
+torch.autograd.set_detect_anomaly(True)
 
 import numpy as np
 
@@ -27,7 +28,9 @@ def collate_fn(batch):
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--epoch", action="store", dest="epoch", default=1000, type=int, help="Epoch to train [400,250,25]")
-parser.add_argument("--train_lr", action="store", dest="train_lr", default=1e-7, type=float, help="Learning rate [0.0001]")
+parser.add_argument("--train_lr", action="store", dest="train_lr", default=1e-4, type=float, help="Learning rate [0.0001]")
+parser.add_argument("--g_train_lr", action="store", dest="g_train_lr", default=1e-4, type=float, help="Learning rate [0.0001]")
+parser.add_argument("--d_train_lr", action="store", dest="d_train_lr", default=1e-6, type=float, help="Learning rate [0.0001]")
 
 parser.add_argument("--img_size", action="store", dest="img_size", default=32, type=int, help="Input image size")
 parser.add_argument("--dim_mults", action="store", dest="dim_mults", default=[1,2,4,8], type=list, help="Dimension Multiplication")
@@ -41,9 +44,9 @@ parser.add_argument("--root_dir_ddpm", action="store", dest="root_dir_ddpm", def
 parser.add_argument("--vqgan_ckpt", action="store", dest="vqgan_ckpt", default='./outputs/checkpoint_vqgan.ckpt', type=str, help="VQGAN checkpoint")
 parser.add_argument("--ddpm_ckpt", action="store", dest="ddpm_ckpt", default='./outputs/checkpoint_ddpm.ckpt', type=str, help="DDPM checkpoint")
 parser.add_argument("--NDC_ckpt", action="store", dest="NDC_ckpt", default='./outputs/checkpoint_NDC.ckpt', type=str, help="DDPM checkpoint")
-parser.add_argument("--batch_size", action="store", dest="batch_size", default=1, type=float, help="Batch size")
+parser.add_argument("--batch_size", action="store", dest="batch_size", default=2, type=float, help="Batch size")
 parser.add_argument("--sample_interval", action="store", dest="sample_interval", default=1000, type=float, help="Sampling interval")
-parser.add_argument("--train_num_steps", action="store", dest="train_num_steps", default=100000, type=float, help="Number of training steps")
+parser.add_argument("--train_num_steps", action="store", dest="train_num_steps", default=1000, type=float, help="Number of training steps")
 parser.add_argument("--results_folder", action="store", dest="results_folder", default='./outputs/NDC_ddpm/', type=str, help="Result folder")
 parser.add_argument("--num_workers", action="store", dest="num_workers", default=1, type=float, help="Number of workers")
 
@@ -118,14 +121,14 @@ dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=1, shuf
 # dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=cfg.num_workers, collate_fn=collate_fn)
 
 generator = Generator(NDC=NDC_network, ddpm=ddpm_model.ema_model, receptive_padding=receptive_padding)
-discriminator = Discriminator(nf0=5, conv_res=[64, 128, 256, 256], nclasses=1, input_res=750, pool_res=[600, 450, 300, 180],
+discriminator = Discriminator(nf0=5, conv_res=[64, 128, 256, 256], nclasses=1000, input_res=750, pool_res=[600, 450, 300, 180],
                               fc_n=1, norm='group', num_groups=cfg.num_workers, device_num=cfg.gpu)
 
 generator.cuda()
 discriminator.cuda()
 
-optimizer_G = torch.optim.Adam(generator.parameters())
-optimizer_D = torch.optim.Adam(discriminator.parameters())
+optimizer_G = torch.optim.Adam(generator.parameters(), lr=cfg.g_train_lr)
+optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=cfg.d_train_lr)
 
 adversarial_loss = torch.nn.BCELoss()
 
@@ -140,19 +143,23 @@ for epoch in range(cfg.train_num_steps):
         gt_output_float_ = data['gt_output_float']
 
         # Adversarial ground truths
-        valid = torch.full(gt_input_.shape, 1.0)
+        valid = torch.full([1, 1000], 1.0).cuda()
+        fake = torch.full([1, 1000], 0.0).cuda()
         valid.requires_grad = False
-        # fake = Variable(Tensor(imgs.size(0), 1).fill_(0.0), requires_grad=False)
+        fake.requires_grad = False
 
         #  Train Generator
-        # optimizer_G.zero_grad()
+        optimizer_G.zero_grad()
 
         # Sample noise as generator input
-        # z = torch.rand([8, 1, 32, 32, 32]).cuda()
+        z = torch.rand(gt_input_.shape).cuda()
+        z = torch.mul(z, 4.)
+        z = torch.sub(z, 2.)
+        gt_input = torch.Tensor(gt_input_).cuda()
 
         # Generate vertices & triangles of mesh
-        gt_input = torch.Tensor(gt_input_).cuda()
-        vertices, triangles, gen_mesh_ = generator(gt_sdf=gt_input)
+        # gt_input = torch.Tensor(z).cuda()
+        vertices, triangles, gen_mesh_ = generator(gt_sdf=z)
         gen_mesh = (gen_mesh_,)
         gen_mesh = np.array(gen_mesh)
         gen_edge_features = dataset_NDC.ABC_grid_hdf5.extract_edge_features(self=dataset_train, mesh=gen_mesh_)
@@ -165,26 +172,24 @@ for epoch in range(cfg.train_num_steps):
         dis_output_gt = discriminator(gt_edge_features, gt_mesh_)
         dis_output_gen = discriminator(gen_edge_features, gen_mesh)
 
-        print(dis_output_gt)
-        print(dis_output_gen)
+        # print(dis_output_gt)
+        # print(dis_output_gen)
 
         # exit()
-
         # Loss measures generator's ability to fool the discriminator
-        #  g_loss = adversarial_loss(discriminator(gen_imgs), valid)
+        g_loss = -dis_output_gen.mean()
 
-        # g_loss.backward()
-        # optimizer_G.step()
+        g_loss.backward()
+        optimizer_G.step()
 
-        '''
         #  Train Discriminator
         optimizer_D.zero_grad()
 
         # Measure discriminator's ability to classify real from generated samples
-        real_loss = adversarial_loss(discriminator(real_imgs), valid)
-        fake_loss = adversarial_loss(discriminator(gen_imgs.detach()), fake)
-        d_loss = (real_loss + fake_loss) / 2
-
+        # real_loss = adversarial_loss(dis_output_gt, valid)
+        # fake_loss = adversarial_loss(dis_output_gen, fake)
+        # d_loss = (real_loss + fake_loss) / 2
+        d_loss = dis_output_gen.detach().mean() - -dis_output_gt.mean()
         d_loss.backward()
         optimizer_D.step()
 
@@ -192,8 +197,8 @@ for epoch in range(cfg.train_num_steps):
             "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
             % (epoch, cfg.train_num_steps, i, len(dataloader_train), d_loss.item(), g_loss.item())
         )
-
         batches_done = epoch * len(dataloader_train) + i
+        '''
         if batches_done % cfg.sample_interval == 0:
             save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
             '''

@@ -73,6 +73,7 @@ class Discriminator(nn.Module):
         x = F.relu(self.fc1(x))
         # print(x.shape)
         x = self.fc2(x)
+        # output = F.softmax(x)
         return x
 
 
@@ -93,19 +94,19 @@ class MResConv(nn.Module):
         # print(x.shape)
         x = self.conv0(x, mesh)
         # print(x.shape)
-        x1 = x
+        x1 = torch.empty_like(x).copy_(x)
         for i in range(self.skips):
             x = getattr(self, 'bn{}'.format(i + 1))(F.relu(x))
             # print(x.shape)
             x = getattr(self, 'conv{}'.format(i + 1))(x, mesh)
             # print(x.shape)
-            x = F.softmax(x)
+            # xo = F.softmax(x)
         x += x1
         # print(x.shape)
-        x = F.relu(x)
+        output = F.relu(x)
         # print(x.shape)
         # print('###################')
-        return x
+        return output
 
 
 def get_norm_args(norm_layer, nfeats_list):
