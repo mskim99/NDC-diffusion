@@ -10,24 +10,146 @@ from NDC.utils import gen_mesh
 from mesh.mesh_conv import MeshConv
 from mesh.mesh_pool import MeshPool
 
-class Generator(nn.Module):
-    def __init__(self, ddpm, NDC, receptive_padding):
-        super(Generator, self).__init__()
+
+class SDF_Generator(nn.Module):
+    def __init__(self):
+        super(SDF_Generator, self).__init__()
+
+        self.e_layer1 = torch.nn.Sequential(
+            torch.nn.Conv3d(1, 8, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(8),
+            torch.nn.ReLU(),
+        )
+        self.e_layer2 = torch.nn.Sequential(
+            torch.nn.Conv3d(8, 16, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(16),
+            torch.nn.ReLU(),
+        )
+        self.e_layer3 = torch.nn.Sequential(
+            torch.nn.Conv3d(16, 32, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(32),
+            torch.nn.ReLU(),
+        )
+        self.e_layer4 = torch.nn.Sequential(
+            torch.nn.Conv3d(32, 64, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(64),
+            torch.nn.ReLU(),
+        )
+
+        self.d_layer1 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(64, 32, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(32),
+            torch.nn.ReLU(),
+        )
+        self.d_layer2 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(32, 16, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(16),
+            torch.nn.ReLU(),
+        )
+        self.d_layer3 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(16, 8, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(8),
+            torch.nn.ReLU(),
+        )
+        self.d_layer4 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(8, 1, kernel_size=4, stride=2, padding=1),
+            torch.nn.Sigmoid(),
+        )
+
+    def forward(self, z):
+
+        # print(z.shape)
+        features = self.e_layer1(z)
+        # print(features.shape)
+        features = self.e_layer2(features)
+        # print(features.shape)
+        features = self.e_layer3(features)
+        # print(features.shape)
+        features = self.e_layer4(features)
+        # print(features.shape)
+
+        features = self.d_layer1(features)
+        # print(features.shape)
+        features = self.d_layer2(features)
+        # print(features.shape)
+        features = self.d_layer3(features)
+        # print(features.shape)
+        output = self.d_layer4(features)
+        # print(output.shape)
+        return output
+
+
+class SDF_Discriminator(nn.Module):
+    def __init__(self):
+        super(SDF_Discriminator, self).__init__()
+
+        self.layer1 = torch.nn.Sequential(
+            torch.nn.Conv3d(1, 8, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(8),
+            torch.nn.ReLU(),
+        )
+        self.layer2 = torch.nn.Sequential(
+            torch.nn.Conv3d(8, 16, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(16),
+            torch.nn.ReLU(),
+        )
+        self.layer3 = torch.nn.Sequential(
+            torch.nn.Conv3d(16, 32, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(32),
+            torch.nn.ReLU(),
+        )
+        self.layer4 = torch.nn.Sequential(
+            torch.nn.Conv3d(32, 64, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(64),
+            torch.nn.ReLU(),
+        )
+        self.layer5 = torch.nn.Sequential(
+            torch.nn.Conv3d(64, 128, kernel_size=4, stride=2, padding=1),
+            torch.nn.Sigmoid()
+        )
+        self.layer6 = torch.nn.Sequential(
+            torch.nn.Conv3d(128, 1, kernel_size=2, stride=2, padding=0),
+            torch.nn.Sigmoid()
+        )
+
+    def forward(self, sdf):
+
+        # print(sdf.shape)
+        features = self.layer1(sdf)
+        # print(features.shape)
+        features = self.layer2(features)
+        # print(features.shape)
+        features = self.layer3(features)
+        # print(features.shape)
+        features = self.layer4(features)
+        # print(features.shape)
+        features = self.layer5(features)
+        # print(features.shape)
+        output = self.layer6(features)
+        # print(output.shape)
+        output = output.reshape(-1)
+        # print(output.shape)
+        return output
+
+
+class Mesh_Generator(nn.Module):
+    def __init__(self, NDC, receptive_padding):
+        super(Mesh_Generator, self).__init__()
         self.NDC = NDC
-        self.ddpm = ddpm
+        # self.ddpm = ddpm
         self.receptive_padding = receptive_padding
 
     def forward(self, gt_sdf):
-        ddpm_output = self.ddpm.sample(batch_size=1)
-        ddpm_output = ddpm_output.clone()
+        # ddpm_output = self.ddpm.sample(batch_size=1)
+        # ddpm_output = ddpm_output.clone()
         vertices, triangles, mesh = gen_mesh(self.NDC, gt_sdf, self.receptive_padding)
         return vertices, triangles, mesh
 
 
-class Discriminator(nn.Module):
+class Mesh_Discriminator(nn.Module):
     def __init__(self, nf0, conv_res, nclasses, input_res, pool_res, fc_n, norm, num_groups, device_num,
                  nresblocks=3):
-        super(Discriminator, self).__init__()
+        super(Mesh_Discriminator, self).__init__()
         self.k = [nf0] + conv_res
         self.res = [input_res] + pool_res
         self.device_num = device_num

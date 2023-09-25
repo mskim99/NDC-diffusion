@@ -97,7 +97,7 @@ class Mesh:
         if file is None:
             if self.export_folder:
                 filename, file_extension = os.path.splitext(self.filename)
-                file = '%s/%s_%d%s' % (self.export_folder, filename, self.pool_count, file_extension)
+                file = '%s/%s%s' % (self.export_folder, filename, file_extension)
             else:
                 return
         faces = []
@@ -114,8 +114,9 @@ class Mesh:
                 vcol = ' %f %f %f' % (vcolor[vi, 0], vcolor[vi, 1], vcolor[vi, 2]) if vcolor is not None else ''
                 f.write("v %f %f %f%s\n" % (v[0], v[1], v[2], vcol))
             for face_id in range(len(faces) - 1):
-                f.write("f %d %d %d\n" % (faces[face_id][0] + 1, faces[face_id][1] + 1, faces[face_id][2] + 1))
-            f.write("f %d %d %d" % (faces[-1][0] + 1, faces[-1][1] + 1, faces[-1][2] + 1))
+                if len(faces[face_id]) > 0:
+                    f.write("f %d %d %d\n" % (faces[face_id][0] + 1, faces[face_id][1] + 1, faces[face_id][2] + 1))
+            # f.write("f %d %d %d" % (faces[-1][0] + 1, faces[-1][1] + 1, faces[-1][2] + 1))
             for edge in self.edges:
                 f.write("\ne %d %d" % (new_indices[edge[0]] + 1, new_indices[edge[1]] + 1))
 
@@ -165,9 +166,10 @@ class Mesh:
 
     def __cycle_to_face(self, cycle, v_indices):
         face = []
-        for i in range(3):
-            v = list(set(self.edges[cycle[i]]) & set(self.edges[cycle[(i + 1) % 3]]))[0]
-            face.append(v_indices[v])
+        if not -1 in cycle:
+            for i in range(3):
+                v = list(set(self.edges[cycle[i]]) & set(self.edges[cycle[(i + 1) % 3]]))[0]
+                face.append(v_indices[v])
         return face
 
     def init_history(self):

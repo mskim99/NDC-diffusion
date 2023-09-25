@@ -1,19 +1,26 @@
 import torch
 torch.backends.cudnn.enabled = False
 torch.autograd.set_detect_anomaly(True)
+import torch.nn.functional as F
+from torch import autograd
+from torch.autograd import Variable
 
 import numpy as np
 
 import argparse
 import os
-from ddpm.unet import UNet
-from ddpm.diffusion import Unet3D, GaussianDiffusion, Trainer
-from ddpm.get_dataset import get_dataset
+import datetime
+# from ddpm.unet import UNet
+# from ddpm.diffusion import Unet3D, GaussianDiffusion, Trainer
+# from ddpm.get_dataset import get_dataset
+
+from skimage.transform import resize
 
 from NDC import dataset as dataset_NDC
 from NDC import model as model_NDC
 
-from con_gan.model import Generator, Discriminator
+from con_gan.model import SDF_Generator, SDF_Discriminator, Mesh_Generator, Mesh_Discriminator
+
 
 def collate_fn(batch):
     """Creates mini-batch tensors
@@ -25,12 +32,40 @@ def collate_fn(batch):
         meta.update({key: np.array([d[key] for d in batch])})
     return meta
 
+
+def calc_gradient_penalty(netD, real_data, fake_data):
+
+    batch_size = real_data.size(0)
+    epsilon = torch.rand(batch_size, 1, 1, 1, 1)
+    epsilon = epsilon.expand_as(real_data)
+    epsilon = epsilon.cuda()
+
+    interpolation = epsilon * real_data.data + (1 - epsilon) * fake_data.data
+    interpolation = Variable(interpolation, requires_grad=True)
+    interpolation = interpolation.cuda()
+
+    interpolation_logits = netD(interpolation)
+    grad_outputs = torch.ones(interpolation_logits.size())
+    grad_outputs = grad_outputs.cuda()
+
+    gradients = autograd.grad(outputs=interpolation_logits,
+                              inputs=interpolation,
+                              grad_outputs=grad_outputs,
+                              create_graph=True,
+                              retain_graph=True)[0]
+
+    gradients = gradients.view(batch_size, -1)
+    gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+    return 10. * ((gradients_norm - 1) ** 2).mean()
+
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--epoch", action="store", dest="epoch", default=1000, type=int, help="Epoch to train [400,250,25]")
 parser.add_argument("--train_lr", action="store", dest="train_lr", default=1e-4, type=float, help="Learning rate [0.0001]")
 parser.add_argument("--g_train_lr", action="store", dest="g_train_lr", default=1e-4, type=float, help="Learning rate [0.0001]")
-parser.add_argument("--d_train_lr", action="store", dest="d_train_lr", default=1e-6, type=float, help="Learning rate [0.0001]")
+parser.add_argument("--d_train_lr", action="store", dest="d_train_lr", default=1e-4, type=float, help="Learning rate [0.0001]")
+parser.add_argument("--n_critic", action="store", dest="n_critic", default=5, type=int, help="Number of Critie Execution")
 
 parser.add_argument("--img_size", action="store", dest="img_size", default=32, type=int, help="Input image size")
 parser.add_argument("--dim_mults", action="store", dest="dim_mults", default=[1,2,4,8], type=list, help="Dimension Multiplication")
@@ -44,7 +79,7 @@ parser.add_argument("--root_dir_ddpm", action="store", dest="root_dir_ddpm", def
 parser.add_argument("--vqgan_ckpt", action="store", dest="vqgan_ckpt", default='./outputs/checkpoint_vqgan.ckpt', type=str, help="VQGAN checkpoint")
 parser.add_argument("--ddpm_ckpt", action="store", dest="ddpm_ckpt", default='./outputs/checkpoint_ddpm.ckpt', type=str, help="DDPM checkpoint")
 parser.add_argument("--NDC_ckpt", action="store", dest="NDC_ckpt", default='./outputs/checkpoint_NDC.ckpt', type=str, help="DDPM checkpoint")
-parser.add_argument("--batch_size", action="store", dest="batch_size", default=2, type=float, help="Batch size")
+parser.add_argument("--batch_size", action="store", dest="batch_size", default=4, type=float, help="Batch size")
 parser.add_argument("--sample_interval", action="store", dest="sample_interval", default=1000, type=float, help="Sampling interval")
 parser.add_argument("--train_num_steps", action="store", dest="train_num_steps", default=1000, type=float, help="Number of training steps")
 parser.add_argument("--results_folder", action="store", dest="results_folder", default='./outputs/NDC_ddpm/', type=str, help="Result folder")
@@ -59,6 +94,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
 
 # Diffusion Configuration
+'''
 if cfg.denoising_fn == 'Unet3D':
     model = Unet3D(
         dim=cfg.img_size,
@@ -99,6 +135,7 @@ ddpm_model = Trainer(
 
 ddpm_model.load(cfg.ddpm_ckpt, map_location='cuda:0')
 ddpm_model.model.train()
+'''
 
 device = torch.device('cuda')
 torch.backends.cudnn.benchmark = True
@@ -114,33 +151,43 @@ NDC_network = CNN_3d(out_bool=False, out_float=True)
 NDC_network.load_state_dict(torch.load(cfg.NDC_ckpt))
 NDC_network.train()
 
-dataset_train = dataset_NDC.ABC_grid_hdf5(cfg.root_dir, cfg.img_size, receptive_padding, train=True)
+# dataset_train = dataset_NDC.ABC_grid_hdf5(cfg.root_dir, cfg.img_size, receptive_padding, train=True)
+dataset_train = dataset_NDC.ABC_grid_hdf5_sdf(cfg.root_dir, cfg.img_size, receptive_padding, train=True)
 # dataset_test = dataset_NDC.ABC_grid_hdf5(cfg.root_dir, cfg.img_size, receptive_padding, train=False)
 
-dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=1, shuffle=True, num_workers=cfg.num_workers, collate_fn=collate_fn)
+dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
 # dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=cfg.num_workers, collate_fn=collate_fn)
 
-generator = Generator(NDC=NDC_network, ddpm=ddpm_model.ema_model, receptive_padding=receptive_padding)
-discriminator = Discriminator(nf0=5, conv_res=[64, 128, 256, 256], nclasses=1000, input_res=750, pool_res=[600, 450, 300, 180],
-                              fc_n=1, norm='group', num_groups=cfg.num_workers, device_num=cfg.gpu)
+sdf_generator = SDF_Generator()
+sdf_discriminator = SDF_Discriminator()
+# mesh_generator = Mesh_Generator(NDC=NDC_network, receptive_padding=receptive_padding)
+# mesh_discriminator = Mesh_Discriminator(nf0=5, conv_res=[64, 128, 256, 256], nclasses=1000, input_res=750, pool_res=[600, 450, 300, 180], fc_n=1, norm='group', num_groups=cfg.num_workers, device_num=cfg.gpu)
 
-generator.cuda()
-discriminator.cuda()
+sdf_generator.cuda()
+sdf_discriminator.cuda()
+# mesh_generator.cuda()
+# mesh_discriminator.cuda()
 
-optimizer_G = torch.optim.Adam(generator.parameters(), lr=cfg.g_train_lr)
-optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=cfg.d_train_lr)
+optimizer_SG = torch.optim.RMSprop(sdf_generator.parameters(), lr=cfg.train_lr) # SDF Generator
+optimizer_SD = torch.optim.RMSprop(sdf_discriminator.parameters(), lr=cfg.train_lr) # SDF Disciminator
+# optimizer_MG = torch.optim.Adam(mesh_generator.parameters(), lr=cfg.train_lr) # Mesh Generator
+# optimizer_MD = torch.optim.Adam(mesh_discriminator.parameters(), lr=cfg.train_lr) # Mesh Disciminator
 
 adversarial_loss = torch.nn.BCELoss()
+dist_loss = torch.nn.L1Loss()
 
 #  Training
 for epoch in range(cfg.train_num_steps):
     for i, data in enumerate(dataloader_train):
 
-        # Configure input
-        gt_edge_features_ = data['edge_features']
-        gt_input_ = data['gt_input']
-        gt_mesh_ = data['mesh']
-        gt_output_float_ = data['gt_output_float']
+        # Configure input (Mesh)
+        # gt_edge_features_ = data['edge_features']
+        # gt_input_ = data['gt_input']
+        # gt_mesh_ = data['mesh']
+        # gt_output_float_ = data['gt_output_float']
+
+        # Configure input (SDF)
+        gt_input = data
 
         # Adversarial ground truths
         valid = torch.full([1, 1000], 1.0).cuda()
@@ -148,18 +195,83 @@ for epoch in range(cfg.train_num_steps):
         valid.requires_grad = False
         fake.requires_grad = False
 
-        #  Train Generator
-        optimizer_G.zero_grad()
+        #  Train SDF Discriminator
+        optimizer_SD.zero_grad()
 
-        # Sample noise as generator input
-        z = torch.rand(gt_input_.shape).cuda()
-        z = torch.mul(z, 4.)
-        z = torch.sub(z, 2.)
+        z = torch.rand([cfg.batch_size, 1, 64, 64, 64]).cuda()
+        sdf_gen = sdf_generator(z)
+
+        gt_input = gt_input.cuda()
+        gt_input = F.normalize(gt_input)
+        gt_input = (gt_input + 1.) / 2.
+
+        dis_output_gt_sdf = sdf_discriminator(sdf=gt_input)
+        dis_output_gen_sdf = sdf_discriminator(sdf=sdf_gen)
+
+        gp_vol = calc_gradient_penalty(sdf_discriminator, gt_input, sdf_gen)
+
+        d_loss_sdf = torch.mean(dis_output_gen_sdf) - torch.mean(dis_output_gt_sdf)
+        d_loss_sdf.backward()
+        gp_vol.backward()
+        optimizer_SD.step()
+
+        #  Train SDF Generator
+        if i % cfg.n_critic == 0:
+            optimizer_SG.zero_grad()
+
+            # Sample noise as generator input
+            z = torch.rand([cfg.batch_size, 1, 64, 64, 64]).cuda()
+            sdf_gen = sdf_generator(z)
+
+            reg_loss = dist_loss(sdf_gen, gt_input)
+
+            dis_output_gen_sdf = sdf_discriminator(sdf=sdf_gen)
+
+            g_loss_sdf = -torch.mean(dis_output_gen_sdf) # + reg_loss
+
+            g_loss_sdf.backward()
+            optimizer_SG.step()
+
+        print(
+            "[%s] [Epoch %d/%d] [Batch %d/%d] [G loss (SDF): %f] [D loss (SDF): %f] [reg loss (SDF): %f] [gp loss (SDF): %f]"
+            % (datetime.datetime.now().time(), epoch, cfg.train_num_steps, i, len(dataloader_train), g_loss_sdf.item(),
+               d_loss_sdf.item(), reg_loss.item(), gp_vol.item())
+        )
+
+        if i % 500 == 0:
+            sdf_gen_npy = sdf_gen.cpu().detach().numpy()
+            sdf_gen_npy = sdf_gen_npy.squeeze()
+            np.save('./gen_SDFs/' + str(epoch) + '_' + str(i).zfill(4) +'_gen.npy', sdf_gen_npy)
+
+
+    if epoch % 10 == 0:
+        checkpoint = {
+            'epoch_idx': epoch,
+            'sdf_generator_state_dict': sdf_generator.state_dict(),
+            'sdf_generator_solver_state_dict': optimizer_SG.state_dict(),
+            'sdf_discriminator_state_dict': sdf_discriminator.state_dict(),
+            'sdf_discriminator_solver_state_dict': optimizer_SD.state_dict(),
+        }
+
+        torch.save(checkpoint, './checkpoint/ckpt-epoch-%04d-sdf.pth' % (epoch + 1))
+
+    '''
+        #  Train Mesh Generator
+        optimizer_MG.zero_grad()
+
+        sdf_gen_reshape_ = resize(sdf_gen.cpu().detach().numpy(), gt_input_.shape)
+        sdf_gen_reshape_ = (sdf_gen_reshape_ - sdf_gen_reshape_.min()) / (sdf_gen_reshape_.max() - sdf_gen_reshape_.min())
+        sdf_gen_reshape_  = 4. * sdf_gen_reshape_ - 2.
+        sdf_gen_reshape = torch.Tensor(sdf_gen_reshape_).cuda()
+        # sdf_gen_reshape = F.normalize(sdf_gen_reshape)
+        # sdf_gen_reshape = torch.mul(sdf_gen_reshape, 4.)
+        # sdf_gen_reshape = torch.sub(sdf_gen_reshape, 2.)
         gt_input = torch.Tensor(gt_input_).cuda()
+
 
         # Generate vertices & triangles of mesh
         # gt_input = torch.Tensor(z).cuda()
-        vertices, triangles, gen_mesh_ = generator(gt_sdf=z)
+        vertices, triangles, gen_mesh_ = mesh_generator(gt_sdf=sdf_gen)
         gen_mesh = (gen_mesh_,)
         gen_mesh = np.array(gen_mesh)
         gen_edge_features = dataset_NDC.ABC_grid_hdf5.extract_edge_features(self=dataset_train, mesh=gen_mesh_)
@@ -169,36 +281,48 @@ for epoch in range(cfg.train_num_steps):
         gen_edge_features = torch.Tensor(gen_edge_features).cuda()
         gen_edge_features = torch.unsqueeze(gen_edge_features, 0)
 
-        dis_output_gt = discriminator(gt_edge_features, gt_mesh_)
-        dis_output_gen = discriminator(gen_edge_features, gen_mesh)
+        dis_output_gt = mesh_discriminator(gt_edge_features, gt_mesh_)
+        dis_output_gen = mesh_discriminator(gen_edge_features, gen_mesh)
 
-        # print(dis_output_gt)
         # print(dis_output_gen)
 
         # exit()
         # Loss measures generator's ability to fool the discriminator
-        g_loss = -dis_output_gen.mean()
+        g_loss_mesh = -dis_output_gen.mean()
 
-        g_loss.backward()
-        optimizer_G.step()
+        g_loss_mesh.backward()
+        optimizer_MG.step()
 
-        #  Train Discriminator
-        optimizer_D.zero_grad()
+        #  Train Mesh Discriminator
+        optimizer_MD.zero_grad()
 
         # Measure discriminator's ability to classify real from generated samples
         # real_loss = adversarial_loss(dis_output_gt, valid)
         # fake_loss = adversarial_loss(dis_output_gen, fake)
         # d_loss = (real_loss + fake_loss) / 2
-        d_loss = dis_output_gen.detach().mean() - -dis_output_gt.mean()
-        d_loss.backward()
-        optimizer_D.step()
+        d_loss_mesh = dis_output_gen.detach().mean() - -dis_output_gt.mean()
+        d_loss_mesh.backward()
+        optimizer_MD.step()
 
         print(
-            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-            % (epoch, cfg.train_num_steps, i, len(dataloader_train), d_loss.item(), g_loss.item())
+            "[Epoch %d/%d] [Batch %d/%d] [G loss (SDF): %f] [D loss (SDF): %f] [G loss (mesh): %f] [D loss (mesh): %f]"
+            % (epoch, cfg.train_num_steps, i, len(dataloader_train), g_loss_sdf.item(), d_loss_mesh.sdf(), g_loss_mesh.item(), d_loss_mesh.item())
         )
-        batches_done = epoch * len(dataloader_train) + i
-        '''
-        if batches_done % cfg.sample_interval == 0:
-            save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
-            '''
+
+        if i % 500 == 0:
+            gen_mesh_.export(file='./gen_meshes/' + str(epoch) + '_' + str(i).zfill(4) +'_gen.obj')
+       
+    checkpoint = {
+        'epoch_idx': epoch,
+        'sdf_generator_state_dict': sdf_generator.state_dict(),
+        'sdf_generator_solver_state_dict': optimizer_SG.state_dict(),
+        'sdf_discriminator_state_dict': sdf_discriminator.state_dict(),
+        'sdf_discriminator_solver_state_dict': optimizer_SD.state_dict(),
+        'mesh_generator_state_dict': mesh_generator.state_dict(),
+        'mesh_generator_solver_state_dict': optimizer_MG.state_dict(),
+        'mesh_discriminator_state_dict': mesh_discriminator.state_dict(),
+        'mesh_discriminator_solver_state_dict': optimizer_MD.state_dict()
+    }
+
+    torch.save(checkpoint, './checkpoint/ckpt-epoch-%04d.pth' % (epoch + 1))
+    '''
