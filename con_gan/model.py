@@ -16,43 +16,53 @@ class SDF_Generator(nn.Module):
         super(SDF_Generator, self).__init__()
 
         self.e_layer1 = torch.nn.Sequential(
-            torch.nn.Conv3d(1, 8, kernel_size=4, stride=2, padding=1),
-            torch.nn.BatchNorm3d(8),
-            torch.nn.ReLU(),
+            torch.nn.Conv3d(1, 32, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(32),
+            torch.nn.LeakyReLU(),
         )
         self.e_layer2 = torch.nn.Sequential(
-            torch.nn.Conv3d(8, 16, kernel_size=4, stride=2, padding=1),
-            torch.nn.BatchNorm3d(16),
-            torch.nn.ReLU(),
-        )
-        self.e_layer3 = torch.nn.Sequential(
-            torch.nn.Conv3d(16, 32, kernel_size=4, stride=2, padding=1),
-            torch.nn.BatchNorm3d(32),
-            torch.nn.ReLU(),
-        )
-        self.e_layer4 = torch.nn.Sequential(
             torch.nn.Conv3d(32, 64, kernel_size=4, stride=2, padding=1),
             torch.nn.BatchNorm3d(64),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(),
+        )
+        self.e_layer3 = torch.nn.Sequential(
+            torch.nn.Conv3d(64, 128, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(128),
+            torch.nn.LeakyReLU(),
+        )
+        self.e_layer4 = torch.nn.Sequential(
+            torch.nn.Conv3d(128, 256, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(256),
+            torch.nn.LeakyReLU(),
+        )
+        self.e_layer5 = torch.nn.Sequential(
+            torch.nn.Conv3d(256, 512, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(512),
+            torch.nn.LeakyReLU(),
         )
 
         self.d_layer1 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(512, 256, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(256),
+            torch.nn.ReLU(),
+        )
+        self.d_layer2 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(256, 128, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(128),
+            torch.nn.ReLU(),
+        )
+        self.d_layer3 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(128, 64, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(64),
+            torch.nn.ReLU(),
+        )
+        self.d_layer4 = torch.nn.Sequential(
             torch.nn.ConvTranspose3d(64, 32, kernel_size=4, stride=2, padding=1),
             torch.nn.BatchNorm3d(32),
             torch.nn.ReLU(),
         )
-        self.d_layer2 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(32, 16, kernel_size=4, stride=2, padding=1),
-            torch.nn.BatchNorm3d(16),
-            torch.nn.ReLU(),
-        )
-        self.d_layer3 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(16, 8, kernel_size=4, stride=2, padding=1),
-            torch.nn.BatchNorm3d(8),
-            torch.nn.ReLU(),
-        )
-        self.d_layer4 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(8, 1, kernel_size=4, stride=2, padding=1),
+        self.d_layer5 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(32, 1, kernel_size=4, stride=2, padding=1),
             torch.nn.Sigmoid(),
         )
 
@@ -67,6 +77,8 @@ class SDF_Generator(nn.Module):
         # print(features.shape)
         features = self.e_layer4(features)
         # print(features.shape)
+        features = self.e_layer5(features)
+        # print(features.shape)
 
         features = self.d_layer1(features)
         # print(features.shape)
@@ -74,7 +86,9 @@ class SDF_Generator(nn.Module):
         # print(features.shape)
         features = self.d_layer3(features)
         # print(features.shape)
-        output = self.d_layer4(features)
+        features = self.d_layer4(features)
+        # print(features.shape)
+        output = self.d_layer5(features)
         # print(output.shape)
         return output
 
@@ -84,31 +98,32 @@ class SDF_Discriminator(nn.Module):
         super(SDF_Discriminator, self).__init__()
 
         self.layer1 = torch.nn.Sequential(
-            torch.nn.Conv3d(1, 8, kernel_size=4, stride=2, padding=1),
-            torch.nn.BatchNorm3d(8),
-            torch.nn.ReLU(),
+            torch.nn.Conv3d(1, 32, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(32),
+            torch.nn.LeakyReLU(),
         )
         self.layer2 = torch.nn.Sequential(
-            torch.nn.Conv3d(8, 16, kernel_size=4, stride=2, padding=1),
-            torch.nn.BatchNorm3d(16),
-            torch.nn.ReLU(),
-        )
-        self.layer3 = torch.nn.Sequential(
-            torch.nn.Conv3d(16, 32, kernel_size=4, stride=2, padding=1),
-            torch.nn.BatchNorm3d(32),
-            torch.nn.ReLU(),
-        )
-        self.layer4 = torch.nn.Sequential(
             torch.nn.Conv3d(32, 64, kernel_size=4, stride=2, padding=1),
             torch.nn.BatchNorm3d(64),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(),
+        )
+        self.layer3 = torch.nn.Sequential(
+            torch.nn.Conv3d(64, 128, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(128),
+            torch.nn.LeakyReLU(),
+        )
+        self.layer4 = torch.nn.Sequential(
+            torch.nn.Conv3d(128, 256, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(256),
+            torch.nn.LeakyReLU(),
         )
         self.layer5 = torch.nn.Sequential(
-            torch.nn.Conv3d(64, 128, kernel_size=4, stride=2, padding=1),
-            torch.nn.Sigmoid()
+            torch.nn.Conv3d(256, 512, kernel_size=4, stride=2, padding=1),
+            torch.nn.BatchNorm3d(512),
+            torch.nn.LeakyReLU(),
         )
         self.layer6 = torch.nn.Sequential(
-            torch.nn.Conv3d(128, 1, kernel_size=2, stride=2, padding=0),
+            torch.nn.Conv3d(512, 1, kernel_size=2, stride=2, padding=0),
             torch.nn.Sigmoid()
         )
 

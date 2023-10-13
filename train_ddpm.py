@@ -32,6 +32,7 @@ def run(cfg: DictConfig):
     diffusion = GaussianDiffusion(
         model,
         vqgan_ckpt=cfg.model.vqgan_ckpt,
+        # vqgan_ckpt=None,
         image_size=cfg.model.diffusion_img_size,
         num_frames=cfg.model.diffusion_depth_size,
         channels=cfg.model.diffusion_num_channels,
