@@ -5,7 +5,7 @@ diffusion_img_size: ???
 diffusion_depth_size: ???
 diffusion_num_channels: ???
 dim_mults: ???
-results_folder: ./outputs/ddpm/
+results_folder: ./outputs/ddpm2/
 results_folder_postfix: 'gnks'
 load_milestone: False
 

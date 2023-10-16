@@ -28,9 +28,9 @@ def get_mean_std(root_dir):
     if not os.path.isfile(mean_std_cache):
         print('computing mean std from train data...')
         mean, std = np.array(0), np.array(0)
-        for i in range (1, 2384):
-            if i % 100 == 0:
-                print('{} of {}'.format(i, 2383))
+        for i in range (1, 101):
+            if i % 10 == 0:
+                print('{} of {}'.format(i, 100))
             mesh = Mesh(file=root_dir+'/mesh_f_3000/'+str(i).zfill(5)+'.obj')
             edge_features = mesh.extract_features()
             edge_features = pad(edge_features, mesh.edges_count)
@@ -55,4 +55,4 @@ def get_mean_std(root_dir):
     return mean, std, ninput_channels
 
 if __name__ == "__main__":
-    _, _, _ = get_mean_std('/data/jionkim/gt_NDC_KISTI_SDF_npy')
+    _, _, _ = get_mean_std('/data/jionkim/gt_NDC_KISTI_SDF_p_100_npy')

@@ -2,7 +2,7 @@ import numpy as np
 import vtk
 from vtk.util import numpy_support
 
-img = np.load('J:/Program/NDC-diffusion/output/ddpm/output.npy')
+img = np.load('J:/Program/NDC-main/data_preprocessing/gt_NDC_KISTI_SDF_p_100_npy/res_64_float/00001.npy')
 img_data = img
 
 imdata = vtk.vtkImageData()
@@ -16,6 +16,6 @@ imdata.SetOrigin([0, 0, 0])
 imdata.GetPointData().SetScalars(depthArray)
 
 writer = vtk.vtkMetaImageWriter()
-writer.SetFileName('J:/Program/NDC-diffusion/output/ddpm/output.mha')
+writer.SetFileName('J:/Program/NDC-main/data_preprocessing/gt_NDC_KISTI_SDF_p_100_npy/res_64_float/00001.mha')
 writer.SetInputData(imdata)
 writer.Write()

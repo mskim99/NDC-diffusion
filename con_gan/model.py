@@ -148,16 +148,14 @@ class SDF_Discriminator(nn.Module):
 
 
 class Mesh_Generator(nn.Module):
-    def __init__(self, NDC, receptive_padding):
+    def __init__(self, NDC):
         super(Mesh_Generator, self).__init__()
         self.NDC = NDC
-        # self.ddpm = ddpm
-        self.receptive_padding = receptive_padding
 
-    def forward(self, gt_sdf):
+    def forward(self, gt_sdf, gt_output_bool, gt_output_float):
         # ddpm_output = self.ddpm.sample(batch_size=1)
         # ddpm_output = ddpm_output.clone()
-        vertices, triangles, mesh = gen_mesh(self.NDC, gt_sdf, self.receptive_padding)
+        vertices, triangles, mesh = gen_mesh(self.NDC, gt_sdf, gt_output_bool, gt_output_float)
         return vertices, triangles, mesh
 
 
@@ -180,6 +178,7 @@ class Mesh_Discriminator(nn.Module):
         # self.gp = torch.nn.MaxPool1d(self.res[-1])
         self.fc1 = nn.Linear(self.k[-1], fc_n)
         self.fc2 = nn.Linear(fc_n, nclasses)
+        self.lrelu = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x, mesh):
 
@@ -191,25 +190,31 @@ class Mesh_Discriminator(nn.Module):
             # print('###### Loop' + str(i) + '#######')
             x = getattr(self, 'conv{}'.format(i))(x, mesh)
             # print('conv{}'.format(i))
-            # print(x.shape)
+            # print(x.mean())
             x = F.relu(getattr(self, 'norm{}'.format(i))(x))
             # print('norm{}'.format(i))
-            # print(x.shape)
+            # print(x.mean())
             x = getattr(self, 'pool{}'.format(i))(x, mesh)
             # print('pool{}'.format(i))
-            # print(x.shape)
+            # print(x.mean())
             # print('###### Endloop #######')
 
 
         # print(x.shape)
         x = self.gp(x)
+        # print(x.mean())
         # print(x.shape)
         x = x.view(-1, self.k[-1])
 
         # print(x.shape)
-        x = F.relu(self.fc1(x))
+        x = self.fc1(x)
+        # print(x.mean())
+        x = self.lrelu(x)
         # print(x.shape)
         x = self.fc2(x)
+        # print(x.mean())
+        x = self.lrelu(x)
+        # print(x.mean())
         # output = F.softmax(x)
         return x
 

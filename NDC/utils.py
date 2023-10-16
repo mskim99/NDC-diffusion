@@ -239,7 +239,7 @@ def write_obj_triangle(name, vertices, triangles):
         fout.write("f "+str(int(triangles[ii,0]+1))+" "+str(int(triangles[ii,1]+1))+" "+str(int(triangles[ii,2]+1))+"\n")
     fout.close()
 
-
+'''
 def gen_mesh(ndf_network, sdf_gen, receptive_padding):
     with torch.no_grad():
         pred_output_float = ndf_network(sdf_gen)
@@ -262,3 +262,24 @@ def gen_mesh(ndf_network, sdf_gen, receptive_padding):
         # os.remove("./gen_write.obj")
 
         return vertices, triangles, mesh
+        '''
+
+def gen_mesh(ndf_network, sdf_gen, gt_output_bool, gt_output_float):
+
+    with torch.no_grad():
+        pred_output_float = ndf_network(sdf_gen)
+        pred_output_float_numpy = pred_output_float.detach().cpu().numpy()
+
+        gt_output_bool_numpy = gt_output_bool.detach().cpu().numpy()
+        pred_output_bool_numpy = np.transpose(gt_output_bool_numpy[0], [1, 2, 3, 0])
+        pred_output_bool_numpy = (pred_output_bool_numpy > 0.5).astype(np.int32)
+
+        pred_output_float_numpy = np.transpose(pred_output_float_numpy[0], [1, 2, 3, 0])
+
+    pred_output_float_numpy = np.clip(pred_output_float_numpy, 0, 1)
+    vertices, triangles = dual_contouring_ndc(np.ascontiguousarray(pred_output_bool_numpy, np.int32),
+                                                         np.ascontiguousarray(pred_output_float_numpy, np.float32))
+    write_obj_triangle('./gen_write.obj', vertices, triangles)
+    mesh = Mesh(file="./gen_write.obj")
+
+    return vertices, triangles, mesh

@@ -28,7 +28,7 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
         self.file_names = [name.strip() for name in fin.readlines()]
         fin.close()
 
-        m, s, ni = get_mean_std('/data/jionkim/gt_NDC_KISTI_SDF_npy')
+        m, s, ni = get_mean_std('/data/jionkim/gt_NDC_KISTI_SDF_p_100_npy')
         self.mean = m
         self.std = s
         self.ninput_channels = ni
@@ -37,7 +37,7 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
             self.file_names = self.file_names[:int(len(self.file_names)*0.8)]
             print("Total#", "train", len(self.file_names))
         else:
-            self.file_names = self.file_names[int(len(self.file_names)*0.8):]
+            # self.file_names = self.file_names[int(len(self.file_names)*0.8):]
             print("Total#", "test", len(self.file_names))
 
         temp_file_names = []
@@ -71,7 +71,7 @@ class ABC_grid_hdf5(torch.utils.data.Dataset):
             if self.input_only:
                 gt_output_bool_, gt_output_float_,gt_input_ = read_data_input_only(self.data_dir, self.file_names[index], grid_size)
             else:
-                gt_output_bool_, gt_output_float_,gt_input_ = read_data(self.data_dir, self.file_names[index], grid_size)
+                gt_output_bool_, gt_output_float_,gt_input_ = read_data(self.data_dir, self.file_names[index], grid_size, self.train)
 
         if not self.train:
             gt_output_bool_ = np.transpose(gt_output_bool_, [3,0,1,2]).astype(np.float32)
@@ -201,7 +201,7 @@ class ABC_grid_hdf5_sdf(torch.utils.data.Dataset):
         self.file_names = [name.strip() for name in fin.readlines()]
         fin.close()
 
-        m, s, ni = get_mean_std('/data/jionkim/gt_NDC_KISTI_SDF_npy')
+        m, s, ni = get_mean_std('/data/jionkim/gt_NDC_KISTI_SDF_p_100_npy')
         self.mean = m
         self.std = s
         self.ninput_channels = ni
