@@ -268,7 +268,9 @@ def gen_mesh(ndf_network, sdf_gen, gt_output_bool, gt_output_float):
 
     with torch.no_grad():
         pred_output_float = ndf_network(sdf_gen)
+        # print(pred_output_float.shape)
         pred_output_float_numpy = pred_output_float.detach().cpu().numpy()
+        # np.save('./pred_output_float.npy', pred_output_float_numpy)
 
         gt_output_bool_numpy = gt_output_bool.detach().cpu().numpy()
         pred_output_bool_numpy = np.transpose(gt_output_bool_numpy[0], [1, 2, 3, 0])
@@ -279,7 +281,10 @@ def gen_mesh(ndf_network, sdf_gen, gt_output_bool, gt_output_float):
     pred_output_float_numpy = np.clip(pred_output_float_numpy, 0, 1)
     vertices, triangles = dual_contouring_ndc(np.ascontiguousarray(pred_output_bool_numpy, np.int32),
                                                          np.ascontiguousarray(pred_output_float_numpy, np.float32))
-    write_obj_triangle('./gen_write.obj', vertices, triangles)
+    # write_obj_triangle('./gen_write_before.obj', vertices, triangles)
+    proc_mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(vertices), o3d.utility.Vector3iVector(triangles))
+    proc_mesh.remove_non_manifold_edges()
+    o3d.io.write_triangle_mesh("./gen_write.obj", proc_mesh)
     mesh = Mesh(file="./gen_write.obj")
 
     return vertices, triangles, mesh

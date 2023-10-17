@@ -5,7 +5,7 @@ diffusion_img_size: ???
 diffusion_depth_size: ???
 diffusion_num_channels: ???
 dim_mults: ???
-results_folder: ./outputs/ddpm2/
+results_folder: ./outputs/ddpm/
 results_folder_postfix: 'gnks'
 load_milestone: False
 
@@ -15,7 +15,7 @@ logger: wandb
 objective: pred_x0
 save_and_sample_every: 1000
 denoising_fn: Unet3D
-train_lr: 5e-5
+train_lr: 1e-4
 timesteps: 60 # number of steps
 sampling_timesteps: 50 # number of sampling timesteps (using ddim for faster inference [see citation for ddim paper])
 loss_type: l1 # L1 or L2

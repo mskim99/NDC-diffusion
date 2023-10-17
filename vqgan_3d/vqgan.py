@@ -87,6 +87,7 @@ class VQGAN(pl.LightningModule):
         self.save_hyperparameters()
 
     def encode(self, x, include_embeddings=False, quantize=True):
+        x = x.float().cuda()
         h = self.pre_vq_conv(self.encoder(x))
         if quantize:
             vq_output = self.codebook(h)

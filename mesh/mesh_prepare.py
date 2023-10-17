@@ -66,13 +66,23 @@ def fill_from_file(mesh, file):
             vs.append([float(v) for v in splitted_line[1:4]])
         elif splitted_line[0] == 'f':
             face_vertex_ids = [int(c.split('/')[0]) for c in splitted_line[1:]]
-            assert len(face_vertex_ids) == 3
-            face_vertex_ids = [(ind - 1) if (ind >= 0) else (len(vs) + ind)
-                               for ind in face_vertex_ids]
-            faces.append(face_vertex_ids)
+            # assert len(face_vertex_ids) == 3
+            if len(face_vertex_ids) == 3:
+                face_vertex_ids = [(ind - 1) if (ind >= 0) else (len(vs) + ind)
+                                   for ind in face_vertex_ids]
+                faces.append(face_vertex_ids)
+            else:
+                print('error faces ids : ' + str(len(face_vertex_ids)))
     f.close()
     vs = np.asarray(vs)
     faces = np.asarray(faces, dtype=int)
+    if not np.logical_and(faces >= 0, faces < len(vs)).all():
+        print(len(vs))
+        print(faces.max())
+        print(np.argwhere(faces >= len(vs)))
+        np.delete(faces, np.argwhere(faces >= len(vs)))
+        print(len(vs))
+        print(faces.max())
     assert np.logical_and(faces >= 0, faces < len(vs)).all()
     return vs, faces
 
@@ -156,6 +166,8 @@ def compute_face_normals_and_areas(mesh, faces):
                             mesh.vs[faces[:, 2]] - mesh.vs[faces[:, 1]])
     face_areas = np.sqrt((face_normals ** 2).sum(axis=1))
     face_normals /= face_areas[:, np.newaxis]
+    if np.any(face_areas[:, np.newaxis] == 0):
+        print(np.where(face_areas[:, np.newaxis] == 0))
     assert (not np.any(face_areas[:, np.newaxis] == 0)), 'has zero area face: %s' % mesh.filename
     face_areas *= 0.5
     return face_normals, face_areas

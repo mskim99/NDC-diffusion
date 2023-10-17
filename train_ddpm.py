@@ -42,6 +42,8 @@ def run(cfg: DictConfig):
 
     train_dataset, *_ = get_dataset(cfg)
 
+    print(train_dataset)
+
     trainer = Trainer(
         diffusion,
         dataset=train_dataset,

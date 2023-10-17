@@ -26,7 +26,10 @@ from copy import copy
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-torch.cuda.set_device(2)
+device_num = 2
+
+torch.cuda.set_device(device_num)
+enable_train_ddpm = True
 
 def collate_fn(batch):
     """Creates mini-batch tensors
@@ -69,8 +72,8 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--epoch", action="store", dest="epoch", default=50, type=int, help="Epoch to train [400,250,25]")
 parser.add_argument("--train_lr", action="store", dest="train_lr", default=1e-4, type=float, help="Learning rate [0.0001]")
-parser.add_argument("--g_train_lr", action="store", dest="g_train_lr", default=1e-4, type=float, help="Learning rate [0.0001]")
-parser.add_argument("--d_train_lr", action="store", dest="d_train_lr", default=1e-4, type=float, help="Learning rate [0.0001]")
+parser.add_argument("--g_train_lr", action="store", dest="g_train_lr", default=2.5e-4, type=float, help="Learning rate [0.0001]")
+parser.add_argument("--d_train_lr", action="store", dest="d_train_lr", default=2.5e-4, type=float, help="Learning rate [0.0001]")
 parser.add_argument("--n_critic", action="store", dest="n_critic", default=3, type=int, help="Number of Critie Execution")
 
 parser.add_argument("--img_size", action="store", dest="img_size", default=32, type=int, help="Input image size")
@@ -88,7 +91,7 @@ parser.add_argument("--NDC_ckpt", action="store", dest="NDC_ckpt", default='./ou
 parser.add_argument("--batch_size", action="store", dest="batch_size", default=1, type=float, help="Batch size")
 parser.add_argument("--sample_interval", action="store", dest="sample_interval", default=150, type=float, help="Sampling interval")
 parser.add_argument("--train_num_steps", action="store", dest="train_num_steps", default=150, type=float, help="Number of training steps")
-parser.add_argument("--results_folder", action="store", dest="results_folder", default='./outputs/NDC_ddpm/', type=str, help="Result folder")
+parser.add_argument("--results_folder", action="store", dest="results_folder", default='./outputs/NDC_ddpm2/', type=str, help="Result folder")
 parser.add_argument("--num_workers", action="store", dest="num_workers", default=1, type=float, help="Number of workers")
 
 parser.add_argument("--postprocessing", action="store_true", dest="postprocessing", default=False, help="Enable the post-processing step to close small holes [False]")
@@ -128,8 +131,10 @@ ddpm_model = Trainer(
     num_workers=cfg.num_workers,
 )
 
-ddpm_model.load(cfg.ddpm_ckpt, map_location='cuda:0')
-ddpm_model.model.train()
+ddpm_model.load(cfg.ddpm_ckpt, map_location='cuda:' + str(device_num))
+if enable_train_ddpm:
+    ddpm_model.model.train()
+    ddpm_model.model.cuda()
 
 # device = torch.device('cuda')
 torch.backends.cudnn.benchmark = True
@@ -142,7 +147,7 @@ pooling_radius = 2 # for pointcloud input
 KNN_num = 8
 
 NDC_network = CNN_3d(out_bool=False, out_float=True)
-NDC_network.load_state_dict(torch.load(cfg.NDC_ckpt))
+NDC_network.load_state_dict(torch.load(cfg.NDC_ckpt, map_location='cuda:' + str(device_num)))
 NDC_network.train()
 
 dataset_train = dataset_NDC.ABC_grid_hdf5(cfg.root_dir, cfg.img_size, receptive_padding, train=False)
@@ -153,12 +158,13 @@ dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffl
 
 mesh_generator = Mesh_Generator(NDC=NDC_network)
 mesh_discriminator = Mesh_Discriminator(nf0=5, conv_res=[64, 128, 256, 256], nclasses=1000, input_res=750,
-                                        pool_res=[600, 450, 300, 180], fc_n=1, norm='group', num_groups=cfg.num_workers, device_num=2)
+                                        pool_res=[600, 450, 300, 180], fc_n=1, norm='group', num_groups=cfg.num_workers, device_num=device_num)
 
 mesh_generator.cuda()
 mesh_discriminator.cuda()
 
-optimizer_MGS = torch.optim.Adam(ddpm_model.model.parameters(), lr=cfg.g_train_lr) # SDF Generator
+if enable_train_ddpm:
+    optimizer_MGS = torch.optim.Adam(ddpm_model.model.parameters(), lr=cfg.g_train_lr) # SDF Generator
 optimizer_MGM = torch.optim.Adam(mesh_generator.parameters(), lr=cfg.g_train_lr) # Mesh Generator
 optimizer_MD = torch.optim.Adam(mesh_discriminator.parameters(), lr=cfg.d_train_lr) # Mesh Disciminator
 
@@ -248,11 +254,12 @@ for epoch in range(cfg.train_num_steps):
         d_loss_mesh.backward()
         optimizer_MD.step()
 
-        optimizer_MGS.zero_grad()
+        if enable_train_ddpm:
+            optimizer_MGS.zero_grad()
         optimizer_MGM.zero_grad()
 
         #  Train Mesh Generator
-        sdf_gen = ddpm_model.ema_model.sample(batch_size=cfg.batch_size)
+        sdf_gen = ddpm_model.model.sample(batch_size=cfg.batch_size)
         sdf_gen = ((sdf_gen - sdf_gen.min()) / (sdf_gen.max() - sdf_gen.min()))
         sdf_gen = 4. * sdf_gen - 2.
 
@@ -283,7 +290,8 @@ for epoch in range(cfg.train_num_steps):
         g_loss_mesh = -dis_output_gen.mean()
 
         g_loss_mesh.backward()
-        optimizer_MGS.step()
+        if enable_train_ddpm:
+            optimizer_MGS.step()
         optimizer_MGM.step()
 
         print(
@@ -291,14 +299,22 @@ for epoch in range(cfg.train_num_steps):
             % (epoch, cfg.train_num_steps, i, len(dataloader_train), g_loss_mesh.item(), d_loss_mesh.item())
         )
 
-
-    checkpoint = {
-        'epoch_idx': epoch,
-        'mesh_generator_state_dict': mesh_generator.state_dict(),
-        'mesh_generator_sdf_solver_state_dict': optimizer_MGS.state_dict(),
-        'mesh_generator_mesh_solver_state_dict': optimizer_MGM.state_dict(),
-        'mesh_discriminator_state_dict': mesh_discriminator.state_dict(),
-        'mesh_discriminator_solver_state_dict': optimizer_MD.state_dict()
-    }
+    if enable_train_ddpm:
+        checkpoint = {
+            'epoch_idx': epoch,
+            'mesh_generator_state_dict': mesh_generator.state_dict(),
+            'mesh_generator_sdf_solver_state_dict': optimizer_MGS.state_dict(),
+            'mesh_generator_mesh_solver_state_dict': optimizer_MGM.state_dict(),
+            'mesh_discriminator_state_dict': mesh_discriminator.state_dict(),
+            'mesh_discriminator_solver_state_dict': optimizer_MD.state_dict()
+        }
+    else:
+        checkpoint = {
+            'epoch_idx': epoch,
+            'mesh_generator_state_dict': mesh_generator.state_dict(),
+            'mesh_generator_mesh_solver_state_dict': optimizer_MGM.state_dict(),
+            'mesh_discriminator_state_dict': mesh_discriminator.state_dict(),
+            'mesh_discriminator_solver_state_dict': optimizer_MD.state_dict()
+        }
 
     torch.save(checkpoint, './checkpoint/ckpt-epoch-%04d_2.pth' % (epoch + 1))

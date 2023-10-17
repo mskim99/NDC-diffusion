@@ -43,6 +43,7 @@ class DEFAULTDataset(Dataset):
         img = np.load(self.file_paths[idx])
         img = resize(img, (64, 64, 64))
         img = img.reshape(1, 64, 64, 64)
+        img = img.astype(np.float64)
         # img = self.preprocessing(img)
         # img = self.transforms(img)
         # return {'data': img.data.permute(0, -1, 1, 2)}
